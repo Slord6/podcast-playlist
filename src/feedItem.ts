@@ -32,4 +32,8 @@ export class FeedItem {
         return `${this.title}(Published: ${this.pubdate})(${this.url.toString()})`;
     }
 
+    public static fromJSON(json: string) {
+        const rawItem = JSON.parse(json);
+        return new FeedItem(rawItem._title, new URL(rawItem._url), rawItem._pubdate);
+    }
 }
