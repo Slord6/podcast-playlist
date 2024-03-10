@@ -1,0 +1,11 @@
+{
+  "name": "podcast-playlist",
+  "version": "1.0.0",
+  "description": "Create playlists of podcast episodes",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Sam Lord",
+  "license": "MIT"
+}
