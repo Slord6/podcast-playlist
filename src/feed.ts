@@ -50,4 +50,10 @@ export class Feed {
         return `${this._name}(${this.url.toString()}):
         ${this.items.map((item: FeedItem, index: number) => `[${index}]: ${item.toString()}`).join("\n")}`;
     }
+
+    public static fromJSON(json: string) {
+        const rawFeed = JSON.parse(json);
+        const items = rawFeed._items.map((item: any) => FeedItem.fromJSON(JSON.stringify(item)));
+        return new Feed(rawFeed._name, new URL(rawFeed._url), new URL(rawFeed._webPage), new URL(rawFeed._imageUrl), items);
+    }
 }
