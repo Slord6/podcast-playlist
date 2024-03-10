@@ -13,6 +13,7 @@
   "author": "Sam Lord",
   "license": "MIT",
   "dependencies": {
+    "express": "^4.18.3",
     "m3u-parser-generator": "^1.7.0",
     "rss-parser": "^3.13.0",
     "xml2js": "^0.6.2"
