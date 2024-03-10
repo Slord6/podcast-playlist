@@ -1,7 +1,6 @@
 import { Feed } from "../feed";
 import Parser from 'rss-parser';
 import { FeedItem } from "../feedItem";
-import { it } from "node:test";
 
 export class RSSFeedImporter {
     private rssUrl: URL;
@@ -13,7 +12,6 @@ export class RSSFeedImporter {
     public async toFeed(): Promise<Feed> {
         const parser: Parser = new Parser();
         const feed = await parser.parseURL(this.rssUrl.toString());
-        console.log(feed.title);
 
         const items: FeedItem[] = feed.items.map((item) => {
             const title = item.title ? item.title : "<Unknown title>";

@@ -30,7 +30,7 @@ export class OPMLImporter {
                 try {
                     return new Feed(feedItem.text, new URL(feedItem.xmlUrl), new URL(feedItem.htmlUrl), new URL(feedItem.imageUrl));
                 } catch {
-                    console.log("FAIL", feedItem.text);
+                    console.error("FAIL", feedItem.text);
                 }
             }).filter(f => f !== undefined) as Feed[];
         });
