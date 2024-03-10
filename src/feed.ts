@@ -1,3 +1,4 @@
+import { FeedItem } from "./feedItem";
 
 
 export class Feed {
@@ -29,15 +30,24 @@ export class Feed {
     public set imageUrl(value: URL) {
         this._imageUrl = value;
     }
+    private _items: FeedItem[];
+    public get items(): FeedItem[] {
+        return this._items;
+    }
+    public set items(value: FeedItem[]) {
+        this._items = value;
+    }
 
-    constructor(name: string, url: URL, webPage: URL, imageUrl: URL) {
+    constructor(name: string, url: URL, webPage: URL, imageUrl: URL, items: FeedItem[] = []) {
         this._name = name;
         this._url = url;
         this._webPage = webPage;
         this._imageUrl = imageUrl;
+        this._items = items;
     }
 
     public toString(): string {
-        return `${this._name}(${this.url})`;
+        return `${this._name}(${this.url.toString()}):
+        ${this.items.map((item: FeedItem, index: number) => `[${index}]: ${item.toString()}`).join("\n")}`;
     }
 }
