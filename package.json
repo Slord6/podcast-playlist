@@ -7,6 +7,9 @@
     "build": "tsc",
     "start": "node dist/index.js"
   },
+  "compilerOptions": {
+    "incremental": true
+  },
   "author": "Sam Lord",
   "license": "MIT",
   "dependencies": {
