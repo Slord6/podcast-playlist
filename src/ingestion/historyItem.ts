@@ -1,35 +1,47 @@
+import { HistoryRow } from "./podcastAddictHistoryImporter";
 
 
 export class HistoryItem {
-    private _name: string;
-    public get name(): string {
-        return this._name;
+    private _episodeName: string;
+    public get episodeName(): string {
+        return this._episodeName;
     }
-    public set name(value: string) {
-        this._name = value;
+    public set episodeName(value: string) {
+        this._episodeName = value;
     }
-    private _url: URL | null;
-    public get url(): URL | null {
-        return this._url;
+    private _episodeURL: URL | null;
+    public get episodeURL(): URL | null {
+        return this._episodeURL;
     }
-    public set url(value: URL | null) {
-        this._url = value;
+    public set episodeURL(value: URL | null) {
+        this._episodeURL = value;
     }
-    private _date: Date;
-    public get date(): Date {
-        return this._date;
+    private _listenDate: Date;
+    public get listenDate(): Date {
+        return this._listenDate;
     }
-    public set date(value: Date) {
-        this._date = value;
+    public set listenDate(value: Date) {
+        this._listenDate = value;
     }
+    private _podcastName: string;
+    public get podcastName(): string {
+        return this._podcastName;
+    }
+    public set podcastName(value: string) {
+        this._podcastName = value;
+    }
+    private _podcastId: number;
 
-    constructor(row: any) {
-        this._name = row.name;
-        this._url = row.url ? new URL(row.url) : null;
-        this._date = new Date(row.playbackDate);
+    constructor(row: HistoryRow) {
+        this._episodeName = row.episodeName;
+        this._episodeURL = row.episodeUrl ? new URL(row.episodeUrl) : null;
+        this._listenDate = new Date(row.playbackDate);
+        this._podcastName = row.podcastName;
+        this._podcastId = row.podcast_id;
     }
 
     public toString() {
-        console.log(`${this._name}(${this._url?.toString()}) listened to on ${this._date.toLocaleString()}`);
+        console.log(`"${this.episodeName}"(${this.episodeURL?.toString()}) from "${this.podcastName}" listened to on ${this.listenDate.toLocaleString()}`);
+    }
     }
 }

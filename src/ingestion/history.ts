@@ -14,7 +14,7 @@ export class History {
     }
 
     public listenedToByName(name: string): boolean {
-        return this.items.filter(item => item.name === name).length > 0;
+        return this.items.filter(item => item.episodeName === name).length > 0;
     }
     
     public listenedToByUrl(url: URL): boolean {
