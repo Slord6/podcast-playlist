@@ -9,6 +9,7 @@ import { PodcastAddictHistoryImporter } from "./ingestion/podcastAddictHistoryIm
 import { History } from "./ingestion/history";
 
 const DATA_DIR = "./data";
+const HISTORY_PATH = `${DATA_DIR}/history.json`;
 
 const argv = yargs(helpers.hideBin(process.argv))
     .command("ingest", "Add new, and update existing, podcast feeds", (yargs) => {
@@ -22,6 +23,7 @@ const argv = yargs(helpers.hideBin(process.argv))
             .describe("path", "Path to the backup db")
             .demandOption(["path"])
     })
+    .command("history", "Load listen history")
     .demandCommand(1, 1)
     .parse() as any;
 
@@ -35,6 +37,9 @@ switch (argv._[0]) {
     case "importHistory":
         importHistory(argv.path);
         break;
+    case "history":
+        history();
+        break;
     default:
         console.error(`${argv._} is not a valid command`);
         break;
@@ -44,9 +49,20 @@ function importHistory(path: string) {
     console.log("Importing...");
     new PodcastAddictHistoryImporter(path).extract().then((history: History) => {
         console.log("History loaded.");
+        fs.writeFileSync(HISTORY_PATH, JSON.stringify(history));
     }).catch((err) => {
         console.log("Import failed.", err);
     })
+}
+
+function history() {
+    if(!fs.existsSync(HISTORY_PATH)) {
+        console.log("No history has been imported.");
+    } else {
+        const json = fs.readFileSync(HISTORY_PATH).toString();
+        const history: History = History.fromJSON(json);
+        console.log(history.toString());
+    }
 }
 
 function list() {
@@ -69,7 +85,7 @@ function newIngest(path: string) {
     if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR);
     }
-    const ingestConfig = IngestConfig.load(path);
+    const ingestConfig: IngestConfig = IngestConfig.load(path);
     console.log(`Loaded ${ingestConfig.opmlSources.length} OPML sources and ${ingestConfig.rssSources.length} rss sources`);
     console.log("Resolving to feeds...");
 

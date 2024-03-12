@@ -43,5 +43,15 @@ export class HistoryItem {
     public toString() {
         console.log(`"${this.episodeName}"(${this.episodeURL?.toString()}) from "${this.podcastName}" listened to on ${this.listenDate.toLocaleString()}`);
     }
+
+    public static fromJSON(json: string): HistoryItem {
+        const raw: {_episodeName: string, _episodeURL: string | null, _listenDate: string, _podcastName: string, _podcastId: number} = JSON.parse(json);
+        return new HistoryItem({
+            episodeName: raw._episodeName,
+            episodeUrl: raw._episodeURL,
+            playbackDate: Date.parse(raw._listenDate),
+            podcastName: raw._podcastName,
+            podcast_id: raw._podcastId
+        })
     }
 }
