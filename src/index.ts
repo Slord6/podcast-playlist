@@ -5,14 +5,23 @@ import * as fs from "fs";
 import { Feed } from "./feed";
 import { OPMLImporter } from "./ingestion/opmlImporter";
 import { RSSFeedImporter } from "./ingestion/rssFeedImporter";
+import { PodcastAddictHistoryImporter } from "./ingestion/podcastAddictHistoryImporter";
+import { History } from "./ingestion/history";
+
 const DATA_DIR = "./data";
 
-const argv = yargs(helpers.hideBin(process.argv)).command("ingest", "Add new, and update existing, podcast feeds", (yargs) => {
-    yargs.string("path")
-        .describe("path", "Path to the ingest configuration file")
-        .demandOption(["path"])
-})
+const argv = yargs(helpers.hideBin(process.argv))
+    .command("ingest", "Add new, and update existing, podcast feeds", (yargs) => {
+        yargs.string("path")
+            .describe("path", "Path to the ingest configuration file")
+            .demandOption(["path"])
+    })
     .command("list", "List the ingested feeds")
+    .command("importHistory", "Import listening history from a Podcast Addict backup db", (yargs) => {
+        yargs.string("path")
+            .describe("path", "Path to the backup db")
+            .demandOption(["path"])
+    })
     .demandCommand(1, 1)
     .parse() as any;
 
@@ -23,9 +32,21 @@ switch (argv._[0]) {
     case "list":
         list();
         break;
+    case "importHistory":
+        importHistory(argv.path);
+        break;
     default:
         console.error(`${argv._} is not a valid command`);
         break;
+}
+
+function importHistory(path: string) {
+    console.log("Importing...");
+    new PodcastAddictHistoryImporter(path).extract().then((history: History) => {
+        console.log("History loaded.");
+    }).catch((err) => {
+        console.log("Import failed.", err);
+    })
 }
 
 function list() {
@@ -35,7 +56,7 @@ function list() {
         const feeds: Feed[] = [];
         subdirs.forEach(subDir => {
             const jsonPath = `${subDir.path}/${subDir.name}/feed.json`;
-            if(fs.existsSync(jsonPath)) {
+            if (fs.existsSync(jsonPath)) {
                 const feed = Feed.fromJSON(fs.readFileSync(jsonPath).toString());
                 feeds.push(feed);
             }
