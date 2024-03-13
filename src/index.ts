@@ -7,6 +7,7 @@ import { OPMLImporter } from "./ingestion/opmlImporter";
 import { RSSFeedImporter } from "./ingestion/rssFeedImporter";
 import { PodcastAddictHistoryImporter } from "./ingestion/podcastAddictHistoryImporter";
 import { History } from "./ingestion/history";
+import { HistoryItem } from "./ingestion/historyItem";
 
 const DATA_DIR = "./data";
 const HISTORY_PATH = `${DATA_DIR}/history.json`;
@@ -23,7 +24,10 @@ const argv = yargs(helpers.hideBin(process.argv))
             .describe("path", "Path to the backup db")
             .demandOption(["path"])
     })
-    .command("history", "Load listen history")
+    .command("history", "Load listen history", (yargs) => {
+        yargs.string("name")
+        .describe("name", "Name of a podcast to check for in the history")
+    })
     .demandCommand(1, 1)
     .parse() as any;
 
@@ -38,7 +42,7 @@ switch (argv._[0]) {
         importHistory(argv.path);
         break;
     case "history":
-        history();
+        history(argv.name ? argv.name : null);
         break;
     default:
         console.error(`${argv._} is not a valid command`);
@@ -55,13 +59,20 @@ function importHistory(path: string) {
     })
 }
 
-function history() {
+function history(name: string | null) {
     if(!fs.existsSync(HISTORY_PATH)) {
         console.log("No history has been imported.");
     } else {
         const json = fs.readFileSync(HISTORY_PATH).toString();
         const history: History = History.fromJSON(json);
-        console.log(history.toString());
+        if(name === null) {
+            // Print whole history if no query
+            console.log(history.toString());
+        } else {
+            const inHistory: HistoryItem[] = history.queryByName(name);
+            console.log(`"${name}" ${inHistory.length > 0 ? "is" : "is not"} in the listen history:`);
+            console.log(inHistory.map(i => i.toString()).join("\n"));
+        }
     }
 }
 

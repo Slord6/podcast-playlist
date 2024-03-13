@@ -34,14 +34,14 @@ export class HistoryItem {
 
     constructor(row: HistoryRow) {
         this._episodeName = row.episodeName;
-        this._episodeURL = row.episodeUrl ? new URL(row.episodeUrl) : null;
+        this._episodeURL = row.episodeUrl !== null ? new URL(row.episodeUrl) : null;
         this._listenDate = new Date(row.playbackDate);
         this._podcastName = row.podcastName;
         this._podcastId = row.podcast_id;
     }
 
     public toString() {
-        console.log(`"${this.episodeName}"(${this.episodeURL?.toString()}) from "${this.podcastName}" listened to on ${this.listenDate.toLocaleString()}`);
+        console.log(`"${this.episodeName}"(${this.episodeURL ? this.episodeURL.toString() : '<No URL>'}) from "${this.podcastName}" listened to on ${this.listenDate.toLocaleString()}`);
     }
 
     public static fromJSON(json: string): HistoryItem {

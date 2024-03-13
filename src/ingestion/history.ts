@@ -15,7 +15,7 @@ export class History {
     }
 
     public listenedToByName(name: string): boolean {
-        return this.items.filter(item => item.episodeName === name).length > 0;
+        return this.queryByName(name, true).length > 0;
     }
     
     public listenedToByUrl(url: URL): boolean {
@@ -27,6 +27,18 @@ export class History {
         //TODO: It's possible that episodes from different podcasts might have the same name
         //If FeedItem had the podcast name, we could filter by that and the episode name jointly
         return this.listenedToByUrl(feedItem.url) || this.listenedToByName(feedItem.title);
+    }
+
+    public queryByName(name: string, strict: boolean = false): HistoryItem[] {
+        return this.items.filter(item => {
+            if(strict) {
+                return item.episodeName === name
+            } else {
+                const epName = item.episodeName.toLowerCase();
+                const qName = name.toLowerCase();
+                return epName.includes(qName) || qName.includes(epName);
+            }
+        });
     }
 
     public toString(): string {
