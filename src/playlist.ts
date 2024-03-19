@@ -3,6 +3,8 @@ import { FeedItem } from './feedItem';
 import { Feed } from './feed';
 import { History } from './ingestion/history';
 import { PlayheadFeed } from './playheadFeed';
+import { Downloader } from './downloader';
+import * as fs from "fs";
 
 export class Playlist {
     private _title: string;
@@ -23,6 +25,32 @@ export class Playlist {
     constructor(title: string, items: FeedItem[] = []) {
         this._title = title;
         this._items = items;
+    }
+
+    public async toM3ULocal(directory: string): Promise<string> {
+        const playlistSafeName = Downloader.toSafeFileName(this.title);
+        const workingDir = `${directory}/${playlistSafeName}`;
+        const playlist = new M3uPlaylist();
+        playlist.title = this.title;
+
+        const downloads: Promise<FeedItem>[] = this.items.map((feedItem: FeedItem) => {
+            return new Downloader(feedItem, workingDir).download();
+        });
+
+        return Promise.all(downloads).then(localFeedItems => {
+            const media: M3uMedia[] = localFeedItems.map((feedItem: FeedItem) => {
+                // Simply use the file name for the url, as it will sit next to the playlist
+                const mediaItem = new M3uMedia(Downloader.toSafeFileName(feedItem.title));
+                mediaItem.name = feedItem.title;
+                mediaItem.artist = feedItem.author;
+                return mediaItem;
+            });
+    
+            playlist.medias = media;
+            const playlistString = playlist.getM3uString();
+            fs.writeFileSync(`${workingDir}/${playlistSafeName}.m3u`, playlistString);
+            return playlistString;
+        });
     }
 
     public toM3U(): string {
