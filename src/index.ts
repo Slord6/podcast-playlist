@@ -104,10 +104,11 @@ function newIngest(path: string) {
     const parsing: Promise<any>[] = [];
     ingestConfig.opmlSources.forEach(source => {
         const opmlParse = new OPMLImporter(source).toFeeds().then(feeds => {
-            if (feeds != null) {
+            console.log("OPML resolved to feeds")
+            if (feeds !== null) {
                 resolvedFeeds.push(...feeds);
             } else {
-                console.warn(`OPML source ${source} failed`);
+                console.warn(`OPML source ${source} failed (${feeds})`);
             }
         });
         parsing.push(opmlParse);
@@ -125,10 +126,10 @@ function newIngest(path: string) {
     });
 
     Promise.all(parsing).then(() => {
+        let initialLength = resolvedFeeds.length;
         resolvedFeeds = resolvedFeeds.filter(f => f !== null);
+        console.log(`Feeds loaded, saving ${resolvedFeeds.length} feeds to ${DATA_DIR} (${initialLength - resolvedFeeds.length} feeds failed to load)`);
         console.log(resolvedFeeds.map(f => f.name).join("\n"));
-
-        console.log("Done", resolvedFeeds.length);
 
         resolvedFeeds.forEach(feed => {
             const dirName = `${DATA_DIR}/${feed.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
