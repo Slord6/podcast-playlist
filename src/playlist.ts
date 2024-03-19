@@ -32,6 +32,7 @@ export class Playlist {
         const media: M3uMedia[] = this.items.map((feedItem: FeedItem) => {
             const mediaItem = new M3uMedia(feedItem.url.toString());
             mediaItem.name = feedItem.title;
+            mediaItem.artist = feedItem.author;
             return mediaItem;
         });
 
