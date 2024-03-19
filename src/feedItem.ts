@@ -21,6 +21,13 @@ export class FeedItem {
     public set pubdate(value: string) {
         this._pubdate = value;
     }
+    public get published(): Date | null {
+        try {
+            return new Date(Date.parse(this.pubdate));
+        } catch {
+            return null;
+        }
+    }
     private _author: string;
     public get author(): string {
         return this._author;
