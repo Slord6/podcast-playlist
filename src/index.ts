@@ -8,6 +8,7 @@ import { RSSFeedImporter } from "./ingestion/rssFeedImporter";
 import { PodcastAddictHistoryImporter } from "./ingestion/podcastAddictHistoryImporter";
 import { History } from "./ingestion/history";
 import { HistoryItem } from "./ingestion/historyItem";
+import { Playlist } from "./playlist";
 
 const DATA_DIR = "./data";
 const HISTORY_PATH = `${DATA_DIR}/history.json`;
@@ -28,6 +29,15 @@ const argv = yargs(helpers.hideBin(process.argv))
         yargs.string("name")
         .describe("name", "Name of a podcast to check for in the history")
     })
+    .command("playlist", "Create a new playlist", (yargs) => {
+        yargs.string("title")
+        .describe("title", "The title of the playlist")
+        .number("count")
+        .describe("count", "The number of items to add to the playlist")
+        .boolean("local")
+        .describe("local", "Download and reference the files locally")
+        .demandOption(["title", "count"])
+    })
     .demandCommand(1, 1)
     .parse() as any;
 
@@ -44,9 +54,27 @@ switch (argv._[0]) {
     case "history":
         history(argv.name ? argv.name : null);
         break;
+    case "playlist":
+        playlist(argv.title, argv.count, argv.local);
+        break;
     default:
         console.error(`${argv._} is not a valid command`);
         break;
+}
+
+function playlist(title: string, count: number, local: boolean) {
+    loadFeeds().then(feeds => {
+        let history = loadHistory();
+        if(history === null) {
+            history = new History([]);
+        }
+        const playlist = Playlist.fromSelection(title, feeds, count, history);
+        if(local) {
+            playlist.toM3ULocal(`${DATA_DIR}/PLAYLISTS/`).then(console.log);
+        } else {
+            console.log(playlist.toM3U());
+        }
+    });
 }
 
 function importHistory(path: string) {
@@ -59,12 +87,18 @@ function importHistory(path: string) {
     })
 }
 
+function loadHistory(): History | null {
+    if(!fs.existsSync(HISTORY_PATH)) return null;
+    const json = fs.readFileSync(HISTORY_PATH).toString();
+    const history: History = History.fromJSON(json);
+    return history;
+}
+
 function history(name: string | null) {
-    if(!fs.existsSync(HISTORY_PATH)) {
+    const history = loadHistory();
+    if(history === null) {
         console.log("No history has been imported.");
     } else {
-        const json = fs.readFileSync(HISTORY_PATH).toString();
-        const history: History = History.fromJSON(json);
         if(name === null) {
             // Print whole history if no query
             console.log(history.toString());
@@ -76,8 +110,8 @@ function history(name: string | null) {
     }
 }
 
-function list() {
-    fs.promises.readdir(DATA_DIR, { withFileTypes: true }).then(dirents => {
+function loadFeeds(): Promise<Feed[]> {
+    return fs.promises.readdir(DATA_DIR, { withFileTypes: true }).then(dirents => {
         return dirents.filter(dirent => dirent.isDirectory())
     }).then((subdirs: fs.Dirent[]) => {
         const feeds: Feed[] = [];
@@ -88,6 +122,12 @@ function list() {
                 feeds.push(feed);
             }
         });
+        return feeds;
+    });
+}
+
+function list() {
+    loadFeeds().then(feeds => {
         feeds.forEach(f => console.log(f.name));
     });
 }

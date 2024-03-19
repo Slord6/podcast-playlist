@@ -21,11 +21,26 @@ export class FeedItem {
     public set pubdate(value: string) {
         this._pubdate = value;
     }
+    public get published(): Date | null {
+        try {
+            return new Date(Date.parse(this.pubdate));
+        } catch {
+            return null;
+        }
+    }
+    private _author: string;
+    public get author(): string {
+        return this._author;
+    }
+    public set author(value: string) {
+        this._author = value;
+    }
 
-    constructor(title: string, url: URL, pubdate: string) {
+    constructor(title: string, url: URL, pubdate: string, author: string) {
         this._title = title;
         this._url = url;
         this._pubdate = pubdate;
+        this._author = author;
     }
 
     public toString(): string {
@@ -34,6 +49,6 @@ export class FeedItem {
 
     public static fromJSON(json: string) {
         const rawItem = JSON.parse(json);
-        return new FeedItem(rawItem._title, new URL(rawItem._url), rawItem._pubdate);
+        return new FeedItem(rawItem._title, new URL(rawItem._url), rawItem._pubdate, rawItem._author);
     }
 }

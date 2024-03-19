@@ -24,8 +24,7 @@ export class History {
     }
 
     public listenedToByFeedItem(feedItem: FeedItem): boolean {
-        //TODO: It's possible that episodes from different podcasts might have the same name
-        //If FeedItem had the podcast name, we could filter by that and the episode name jointly
+        //TODO: Add test on author + name
         return this.listenedToByUrl(feedItem.url) || this.listenedToByName(feedItem.title);
     }
 
