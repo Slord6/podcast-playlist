@@ -34,6 +34,8 @@ const argv = yargs(helpers.hideBin(process.argv))
         .describe("title", "The title of the playlist")
         .number("count")
         .describe("count", "The number of items to add to the playlist")
+        .boolean("local")
+        .describe("local", "Download and reference the files locally")
         .demandOption(["title", "count"])
     })
     .demandCommand(1, 1)
@@ -53,21 +55,25 @@ switch (argv._[0]) {
         history(argv.name ? argv.name : null);
         break;
     case "playlist":
-        playlist(argv.title, argv.count);
+        playlist(argv.title, argv.count, argv.local);
         break;
     default:
         console.error(`${argv._} is not a valid command`);
         break;
 }
 
-function playlist(title: string, count: number) {
+function playlist(title: string, count: number, local: boolean) {
     loadFeeds().then(feeds => {
         let history = loadHistory();
         if(history === null) {
             history = new History([]);
         }
         const playlist = Playlist.fromSelection(title, feeds, count, history);
-        console.log(playlist.toM3U());
+        if(local) {
+            playlist.toM3ULocal(`${DATA_DIR}/PLAYLISTS/`).then(console.log);
+        } else {
+            console.log(playlist.toM3U());
+        }
     });
 }
 
