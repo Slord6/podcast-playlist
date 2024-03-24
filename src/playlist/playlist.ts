@@ -1,9 +1,9 @@
 import { M3uPlaylist, M3uMedia } from 'm3u-parser-generator';
-import { FeedItem } from './feedItem';
-import { Feed } from './feed';
-import { History } from './ingestion/history';
+import { FeedItem } from '../feedItem';
+import { Feed } from '../feed';
+import { History } from '../ingestion/history';
 import { PlayheadFeed } from './playheadFeed';
-import { Downloader } from './downloader';
+import { Downloader } from '../downloader';
 import * as fs from "fs";
 
 export class Playlist {

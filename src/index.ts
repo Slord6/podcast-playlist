@@ -8,7 +8,7 @@ import { RSSFeedImporter } from "./ingestion/rssFeedImporter";
 import { PodcastAddictHistoryImporter } from "./ingestion/podcastAddictHistoryImporter";
 import { History } from "./ingestion/history";
 import { HistoryItem } from "./ingestion/historyItem";
-import { Playlist } from "./playlist";
+import { Playlist } from "./playlist/playlist";
 
 const DATA_DIR = "./data";
 const HISTORY_PATH = `${DATA_DIR}/history.json`;

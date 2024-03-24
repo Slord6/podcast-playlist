@@ -1,6 +1,6 @@
-import { Feed } from "./feed";
-import { FeedItem } from "./feedItem";
-import { History } from "./ingestion/history";
+import { Feed } from "../feed";
+import { FeedItem } from "../feedItem";
+import { History } from "../ingestion/history";
 
 
 export class PlayheadFeed {
