@@ -8,10 +8,16 @@ import { RSSFeedImporter } from "./ingestion/rssFeedImporter";
 import { PodcastAddictHistoryImporter } from "./ingestion/podcastAddictHistoryImporter";
 import { History } from "./ingestion/history";
 import { HistoryItem } from "./ingestion/historyItem";
-import { Playlist } from "./playlist";
+import { PlaylistConfiguration } from "./playlistConfiguration";
 
-const DATA_DIR = "./data";
+const DATA_DIR = "./data"
+const CACHE_DIR = `${DATA_DIR}/cache`;
+const PLAYLIST_DIR = `${DATA_DIR}/playlists`;
 const HISTORY_PATH = `${DATA_DIR}/history.json`;
+
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR);
+}
 
 const argv = yargs(helpers.hideBin(process.argv))
     .command("ingest", "Add new, and update existing, podcast feeds", (yargs) => {
@@ -27,16 +33,19 @@ const argv = yargs(helpers.hideBin(process.argv))
     })
     .command("history", "Load listen history", (yargs) => {
         yargs.string("name")
-        .describe("name", "Name of a podcast to check for in the history")
+            .describe("name", "Name of a podcast to check for in the history")
     })
-    .command("playlist", "Create a new playlist", (yargs) => {
-        yargs.string("title")
-        .describe("title", "The title of the playlist")
-        .number("count")
-        .describe("count", "The number of items to add to the playlist")
-        .boolean("local")
-        .describe("local", "Download and reference the files locally")
-        .demandOption(["title", "count"])
+    .command("playlist", "Playlist commands", (yargs) => {
+        yargs.command("create", "Create a new playlist", (yargs) => {
+            yargs.string("title")
+                .describe("title", "The title of the playlist")
+                .string("configPath")
+                .describe("configPath", "Path to the configuration JSON")
+                .boolean("local")
+                .describe("local", "Download and reference the files locally")
+                .demandOption(["title", "configPath"])
+        })
+        .demandCommand(1,1);
     })
     .demandCommand(1, 1)
     .parse() as any;
@@ -55,22 +64,34 @@ switch (argv._[0]) {
         history(argv.name ? argv.name : null);
         break;
     case "playlist":
-        playlist(argv.title, argv.count, argv.local);
+        createPlaylist(argv.title, argv.configPath, argv.local);
         break;
     default:
         console.error(`${argv._} is not a valid command`);
         break;
 }
 
-function playlist(title: string, count: number, local: boolean) {
+function createPlaylist(title: string, configPath: string, local: boolean) {
+    let configuration: PlaylistConfiguration;
+    if(!fs.existsSync(configPath)) {
+        console.error(`${configPath} does not exist`);
+        return;
+    } else {
+        try {
+            configuration = PlaylistConfiguration.fromJSON(fs.readFileSync(configPath).toString());
+        } catch (err) {
+            console.error(`Could not load playlist configuration from ${configPath}: ${err}`);
+            return;
+        }
+    }
     loadFeeds().then(feeds => {
         let history = loadHistory();
-        if(history === null) {
+        if (history === null) {
             history = new History([]);
         }
-        const playlist = Playlist.fromSelection(title, feeds, count, history);
-        if(local) {
-            playlist.toM3ULocal(`${DATA_DIR}/PLAYLISTS/`).then(console.log);
+        const playlist = configuration.generate(title, feeds, history);
+        if (local) {
+            playlist.toM3ULocal(PLAYLIST_DIR).then(console.log);
         } else {
             console.log(playlist.toM3U());
         }
@@ -88,7 +109,7 @@ function importHistory(path: string) {
 }
 
 function loadHistory(): History | null {
-    if(!fs.existsSync(HISTORY_PATH)) return null;
+    if (!fs.existsSync(HISTORY_PATH)) return null;
     const json = fs.readFileSync(HISTORY_PATH).toString();
     const history: History = History.fromJSON(json);
     return history;
@@ -96,10 +117,10 @@ function loadHistory(): History | null {
 
 function history(name: string | null) {
     const history = loadHistory();
-    if(history === null) {
+    if (history === null) {
         console.log("No history has been imported.");
     } else {
-        if(name === null) {
+        if (name === null) {
             // Print whole history if no query
             console.log(history.toString());
         } else {
@@ -111,7 +132,7 @@ function history(name: string | null) {
 }
 
 function loadFeeds(): Promise<Feed[]> {
-    return fs.promises.readdir(DATA_DIR, { withFileTypes: true }).then(dirents => {
+    return fs.promises.readdir(CACHE_DIR, { withFileTypes: true }).then(dirents => {
         return dirents.filter(dirent => dirent.isDirectory())
     }).then((subdirs: fs.Dirent[]) => {
         const feeds: Feed[] = [];
@@ -133,8 +154,8 @@ function list() {
 }
 
 function newIngest(path: string) {
-    if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR);
+    if (!fs.existsSync(CACHE_DIR)) {
+        fs.mkdirSync(CACHE_DIR);
     }
     const ingestConfig: IngestConfig = IngestConfig.load(path);
     console.log(`Loaded ${ingestConfig.opmlSources.length} OPML sources and ${ingestConfig.rssSources.length} rss sources`);
@@ -168,11 +189,11 @@ function newIngest(path: string) {
     Promise.all(parsing).then(() => {
         let initialLength = resolvedFeeds.length;
         resolvedFeeds = resolvedFeeds.filter(f => f !== null);
-        console.log(`Feeds loaded, saving ${resolvedFeeds.length} feeds to ${DATA_DIR} (${initialLength - resolvedFeeds.length} feeds failed to load)`);
+        console.log(`Feeds loaded, saving ${resolvedFeeds.length} feeds to ${CACHE_DIR} (${initialLength - resolvedFeeds.length} feeds failed to load)`);
         console.log(resolvedFeeds.map(f => f.name).join("\n"));
 
         resolvedFeeds.forEach(feed => {
-            const dirName = `${DATA_DIR}/${feed.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
+            const dirName = `${CACHE_DIR}/${feed.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
             if (!fs.existsSync(dirName)) {
                 fs.mkdirSync(dirName);
             }

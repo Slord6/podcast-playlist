@@ -31,7 +31,7 @@ export class History {
     public queryByName(name: string, strict: boolean = false): HistoryItem[] {
         return this.items.filter(item => {
             if(strict) {
-                return item.episodeName === name
+                return item.episodeName.trim() === name.trim()
             } else {
                 const epName = item.episodeName.toLowerCase();
                 const qName = name.toLowerCase();

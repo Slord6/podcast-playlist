@@ -22,6 +22,8 @@ export class RSSFeedImporter {
                         const title = item.title ? item.title : "<Unknown title>";
                         const urlLoc = item.enclosure?.url;
                         const url = urlLoc ? new URL(urlLoc) : new URL("https://example.com"); // TODO better handling of missing URL
+                        // TODO extract episode type - blocked by https://github.com/rbren/rss-parser/issues/271
+                        // eg <itunes:episodeType>full</itunes:episodeType>, <itunes:episodeType>trailer</itunes:episodeType>
                         return new FeedItem(title, url, item.pubDate ? item.pubDate : "", feedTitle);
                     });
 
