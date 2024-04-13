@@ -9,6 +9,8 @@ import { PodcastAddictHistoryImporter } from "./ingestion/podcastAddictHistoryIm
 import { History } from "./ingestion/history";
 import { HistoryItem } from "./ingestion/historyItem";
 import { PlaylistConfiguration } from "./playlistConfiguration";
+import { Cache } from "./cache/cache";
+import { FeedItem } from "./feedItem";
 
 const DATA_DIR = "./data"
 const CACHE_DIR = `${DATA_DIR}/cache`;
@@ -21,11 +23,14 @@ if (!fs.existsSync(DATA_DIR)) {
 
 const argv = yargs(helpers.hideBin(process.argv))
     .command("ingest", "Add new, and update existing, podcast feeds", (yargs) => {
+        // TODO: support --rss <rss url>
         yargs.string("path")
             .describe("path", "Path to the ingest configuration file")
             .demandOption(["path"])
     })
     .command("list", "List the ingested feeds")
+    // TODO: support marking a playlist as listened
+    // TODO: Refactor to "history -importPA <path>" & "history -importPlaylist <path>"
     .command("importHistory", "Import listening history from a Podcast Addict backup db", (yargs) => {
         yargs.string("path")
             .describe("path", "Path to the backup db")
@@ -45,7 +50,42 @@ const argv = yargs(helpers.hideBin(process.argv))
                 .describe("local", "Download and reference the files locally")
                 .demandOption(["title", "configPath"])
         })
-        .demandCommand(1,1);
+            .demandCommand(1, 1);
+    })
+    .command("cache", "Cache commands", (yargs) => {
+        yargs.command("refresh", "Update the cached feeds")
+            .command("update", "Download any uncached feed items", (yargs) => {
+                yargs.boolean("latest")
+                    .describe("latest", "If set, only get the most recent episode of each feed")
+                    .string("feed")
+                    .describe("feed", "Update only a specific feed")
+                    .boolean("force")
+                    .describe("force", "If updating a specific feed, set this flag to ignore the cache status. Requires --feed")
+                    .check((argv) => {
+                        if(argv.force && !argv.feed) {
+                            throw new Error("--force can only be used when a feed is specified with --feed");
+                        }
+                        return true;
+                    });
+            })
+            .command("skip", "Mark all episodes in feeds as not requiring caching.", (yargs) => {
+                yargs.boolean("all")
+                    .describe("all", "Skip all the episodes in all the feeds that aren't already skipped or cached")
+                    .boolean("history")
+                    .describe("history", "Skip any item that has already been listend to")
+                    .string("feed")
+                    .describe("feed", "Skip the episodes in a specific feed by its name (capitalisation ignored)")
+                    .conflicts("all", ["history", "feed"])
+                    .conflicts("history", ["all", "feed"])
+                    .conflicts("feed", ["history", "all"])
+                    .check((argv) => {
+                        if(!argv.all && !argv.feed && !argv.history) {
+                            throw new Error("Must set at least one option of --all, --feed and --history");
+                        }
+                        return true;
+                    });
+            })
+            .demand(1, 1);
     })
     .demandCommand(1, 1)
     .parse() as any;
@@ -66,14 +106,93 @@ switch (argv._[0]) {
     case "playlist":
         createPlaylist(argv.title, argv.configPath, argv.local);
         break;
+    case "cache":
+        cache(argv);
+        break;
     default:
         console.error(`${argv._} is not a valid command`);
         break;
 }
 
+function cache(argv: any) {
+    const cacheCommand = argv._[1];
+    const cache = new Cache(CACHE_DIR);
+    switch (cacheCommand) {
+        case "refresh":
+            console.log("Refreshing the cache...");
+            cache.refresh().then(() => {
+                console.log("Feed refresh complete");
+            });
+            break;
+        case "update":
+            if (argv.feed) {
+                console.log(`Updating cache for ${argv.feed}...`);
+                loadFeeds().then(feeds => {
+                    const feed: Feed | undefined = feeds.filter(feed => feed.name.toLowerCase() === argv.feed.toLowerCase())[0];
+                    if (!feed) {
+                        console.error(`No known feed called "${argv.feed}"`);
+                    } else {
+                        cache.cacheFeed(feed, argv.latest, argv.force).then(() => {
+                            cache.save();
+                            console.log("Cache feed update complete");
+                        });
+                    }
+                });
+            } else {
+                console.log("Updating all feeds in the cache...");
+                cache.update(argv.latest).then(() => {
+                    cache.save();
+                    console.log("Cache update complete");
+                });
+            }
+            break;
+        case "skip":
+            if (argv.all) {
+                console.log("Skipping cache of all feed items");
+                cache.skipAll().then(() => {
+                    cache.save();
+                    console.log("Skip complete");
+                });
+            } else if (argv.feed) {
+                console.log(`Skipping cache of ${argv.feed}...`);
+                loadFeeds().then(feeds => {
+                    console.log("searching", feeds.length);
+                    const feed: Feed | undefined = feeds.filter(feed => feed.name.toLowerCase() === argv.feed.toLowerCase())[0];
+                    if (!feed) {
+                        console.error(`No known feed called "${argv.feed}"`);
+                    } else {
+                        cache.skip(feed);
+                        cache.save();
+                    }
+                });
+            } else if (argv.history) {
+                console.log(`Skipping all items in the history...`);
+                const history = loadHistory();
+                if (!history) {
+                    console.warn("No history available");
+                    return;
+                }
+                loadFeeds().then(feeds => {
+                    const historyFeedItems: FeedItem[] = history.items.map(historyItem => FeedItem.fromHistoryItem(historyItem, feeds))
+                        .filter(i => i !== null) as FeedItem[];
+                    console.log(`Found ${historyFeedItems.length} items to skip...`);
+                    historyFeedItems.forEach(cache.skipItem.bind(cache));
+                    cache.save();
+                });
+            } else {
+                console.warn(`Unknown cache skip args`);
+                break;
+            }
+            break;
+        default:
+            console.error(`${cacheCommand} is not a valid cache command (${argv._})`);
+            break;
+    }
+}
+
 function createPlaylist(title: string, configPath: string, local: boolean) {
     let configuration: PlaylistConfiguration;
-    if(!fs.existsSync(configPath)) {
+    if (!fs.existsSync(configPath)) {
         console.error(`${configPath} does not exist`);
         return;
     } else {
@@ -91,7 +210,8 @@ function createPlaylist(title: string, configPath: string, local: boolean) {
         }
         const playlist = configuration.generate(title, feeds, history);
         if (local) {
-            playlist.toM3ULocal(PLAYLIST_DIR).then(console.log);
+            const cache = new Cache(CACHE_DIR);
+            playlist.toM3ULocal(PLAYLIST_DIR, cache).then(console.log);
         } else {
             console.log(playlist.toM3U());
         }
@@ -132,19 +252,7 @@ function history(name: string | null) {
 }
 
 function loadFeeds(): Promise<Feed[]> {
-    return fs.promises.readdir(CACHE_DIR, { withFileTypes: true }).then(dirents => {
-        return dirents.filter(dirent => dirent.isDirectory())
-    }).then((subdirs: fs.Dirent[]) => {
-        const feeds: Feed[] = [];
-        subdirs.forEach(subDir => {
-            const jsonPath = `${subDir.path}/${subDir.name}/feed.json`;
-            if (fs.existsSync(jsonPath)) {
-                const feed = Feed.fromJSON(fs.readFileSync(jsonPath).toString());
-                feeds.push(feed);
-            }
-        });
-        return feeds;
-    });
+    return new Cache(CACHE_DIR).loadFeeds();
 }
 
 function list() {
@@ -192,12 +300,9 @@ function newIngest(path: string) {
         console.log(`Feeds loaded, saving ${resolvedFeeds.length} feeds to ${CACHE_DIR} (${initialLength - resolvedFeeds.length} feeds failed to load)`);
         console.log(resolvedFeeds.map(f => f.name).join("\n"));
 
+        const cache = new Cache(CACHE_DIR);
         resolvedFeeds.forEach(feed => {
-            const dirName = `${CACHE_DIR}/${feed.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
-            if (!fs.existsSync(dirName)) {
-                fs.mkdirSync(dirName);
-            }
-            fs.writeFileSync(`${dirName}/feed.json`, JSON.stringify(feed, null, "\t"))
+            cache.registerFeed(feed);
         });
     });
 }

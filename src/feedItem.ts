@@ -1,3 +1,5 @@
+import { Feed } from "./feed";
+import { HistoryItem } from "./ingestion/historyItem";
 
 export class FeedItem {
     private _title: string;
@@ -47,8 +49,15 @@ export class FeedItem {
         return `${this.title}(Published: ${this.pubdate})(${this.url.toString()})`;
     }
 
-    public static fromJSON(json: string) {
+    public static fromJSON(json: string): FeedItem {
         const rawItem = JSON.parse(json);
         return new FeedItem(rawItem._title, new URL(rawItem._url), rawItem._pubdate, rawItem._author);
+    }
+
+    public static fromHistoryItem(historyItem: HistoryItem, feeds: Feed[]): FeedItem | null {
+        const feed: Feed | undefined = feeds.filter(feed => feed.name == historyItem.podcastName)[0];
+        if(!feed) return null;
+        const feedItem = feed.items.filter(item => item.title == historyItem.episodeName)[0];
+        return feedItem ? feedItem : null;
     }
 }

@@ -6,6 +6,7 @@ import { PlayheadFeed } from './playheadFeed';
 import { Downloader } from '../downloader';
 import * as fs from "fs";
 import { PlaylistConfiguration } from '../playlistConfiguration';
+import { Cache } from '../cache/cache';
 
 export class Playlist {
     private _title: string;
@@ -28,14 +29,14 @@ export class Playlist {
         this._items = items;
     }
 
-    public async toM3ULocal(directory: string): Promise<string> {
+    public async toM3ULocal(playlistDirectory: string, cache: Cache): Promise<string> {
         const playlistSafeName = Downloader.toSafeFileName(this.title);
-        const workingDir = `${directory}/${playlistSafeName}`;
+        const workingDir = `${playlistDirectory}/${playlistSafeName}`;
         const playlist = new M3uPlaylist();
         playlist.title = this.title;
 
         const downloads: Promise<FeedItem>[] = this.items.map((feedItem: FeedItem) => {
-            return new Downloader(feedItem, workingDir).download();
+            return new Downloader(feedItem, cache).download();
         });
 
         return Promise.all(downloads).then(localFeedItems => {

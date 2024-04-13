@@ -22,4 +22,8 @@ export class MimeTypes {
         }
         return this._audioTypes[mimeParts[1]] || defaultType;
     }
+
+    public static isExtension(ext: string): boolean {
+        return Object.keys(MimeTypes._audioTypes).includes(ext);
+    }
 }

@@ -2,17 +2,20 @@ import { FeedItem } from "./feedItem";
 import * as fs from "fs";
 import * as stream from "stream";
 import { MimeTypes } from "./mimeTypes";
+import { Cache } from "./cache/cache";
 
 export class Downloader {
     private _source: URL;
     private _feedItem: FeedItem;
+    private _extension: string | null;
+    private _cache: Cache;
 
-    constructor(feedItem: FeedItem, workingDir: string) {
+    constructor(feedItem: FeedItem, cache: Cache) {
         this._source = feedItem.url;
-        this._feedItem = new FeedItem(feedItem.title, new URL(`file://${workingDir}/${Downloader.toSafeFileName(feedItem.title)}`), feedItem.pubdate, feedItem.author);
-        if (!fs.existsSync(workingDir)) {
-            fs.mkdirSync(workingDir, { recursive: true });
-        }
+        const podcastDirName: string = Downloader.toSafeFileName(feedItem.author);
+        this._feedItem = new FeedItem(feedItem.title, new URL(`file://${cache.cacheDirectory}/${podcastDirName}/${Downloader.toSafeFileName(feedItem.title)}`), feedItem.pubdate, feedItem.author);
+        this._extension = null;
+        this._cache = cache;
     }
 
     public static toSafeFileName(unsafe: string): string {
@@ -24,25 +27,39 @@ export class Downloader {
      * @returns Promise to extension string
      */
     private getExtension(): Promise<string> {
+        if(this._extension !== null) return new Promise<string>((r) => r(this._extension!));
+        
         return fetch(this._source, {
             method: "HEAD",
             redirect: "follow"
         }).then(response => {
-            return MimeTypes.getAudioExtension(response.headers.get("content-type"))
+            const mimeBasedExt = MimeTypes.getAudioExtension(response.headers.get("content-type"));
+            if(mimeBasedExt !== "bin") return mimeBasedExt;
+            const sourceParts = this._source.toString().split(".");
+            const possExt = sourceParts[sourceParts.length - 1].toLowerCase();
+            if(MimeTypes.isExtension(possExt)) return possExt;
+            return mimeBasedExt;
+        });
+    }
+
+    public exists(): Promise<boolean> {
+        return this.getPath().then(path => fs.existsSync(path));
+    }
+
+    private getPath(): Promise<string> {
+        const extensionPromise = this.getExtension();
+        return extensionPromise.then(extension => {
+            const path = `${this._feedItem.url.host}/${this._feedItem.url.pathname}.${extension}`;
+            return path;
         });
     }
 
     public async download(): Promise<FeedItem> {
         return new Promise((resolve) => {
-            const extensionPromise = this.getExtension();
-            extensionPromise.then(extension => {
-                if(extension === "bin") {
-                    console.warn(`(DOWNLOADER) Could not determine extension from mime-type, will use 'bin'`);
-                }
-                const path = `${this._feedItem.url.host}/${this._feedItem.url.pathname}.${extension}`;
+            this.getPath().then((path) => {
                 console.log(`(DOWNLOADER) Downloading ${this._feedItem.title} from ${this._source} to ${path}...`);
-                if (fs.existsSync(path)) {
-                    console.log(`(DOWNLOADER) File already exists, skipping (${this._feedItem.title})`);
+                if (this._cache.cached(this._feedItem)) {
+                    console.log(`(DOWNLOADER) File already cached, skipping download (${this._feedItem.title})`);
                     return resolve(this._feedItem);
                 } else {
                     fetch(this._source).then(response => {
