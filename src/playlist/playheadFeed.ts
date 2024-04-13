@@ -18,6 +18,9 @@ export class PlayheadFeed {
     public get nextUnsafe(): FeedItem {
         return this._unplayed[this._playhead];
     }
+    public get latest(): FeedItem {
+        return this._unplayed[this._unplayed.length - 1];
+    }
     private canIncludeFilter: (feedItem: FeedItem) => boolean;
 
 
