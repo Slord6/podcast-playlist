@@ -2,7 +2,7 @@ import * as sqlite3lib from 'sqlite3';
 import { HistoryItem } from './historyItem';
 import { History } from './history';
 
-export type HistoryRow = {episodeName: string, episodeUrl: string | null, podcastName: string, playbackDate: number, podcast_id: number};
+export type HistoryRow = {episodeName: string, episodeUrl: string | null, podcastName: string, playbackDate: number, podcast_id: number | null};
 
 export class PodcastAddictHistoryImporter {
     private db: sqlite3lib.Database;
