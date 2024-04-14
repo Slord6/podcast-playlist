@@ -1,4 +1,4 @@
-import { M3uPlaylist, M3uMedia } from 'm3u-parser-generator';
+import { M3uPlaylist, M3uMedia, M3uParser } from 'm3u-parser-generator';
 import { FeedItem } from '../feedItem';
 import { Downloader } from '../downloader';
 import * as fs from "fs";
@@ -73,12 +73,12 @@ export class Playlist {
             return Promise.allSettled(copies).then((copyRes) => {
                 const failedCopies = copyRes.filter(res => res.status === "rejected");
                 const copyFail = failedCopies.length > 0;
-                if(copyFail) {
+                if (copyFail) {
                     console.error("One or more files failed to copy to the playlist output directory:\n", failedCopies.map(res => (res as any).reason).join("\n"));
                     return "<Not saved>";
                 }
                 console.log(`All items retrieved from the cache. Building playlist...`);
-                
+
                 const media: M3uMedia[] = localFeedItems.map((feedItem: FeedItem) => {
                     // Simply use the file name for the url, as it will sit next to the playlist
                     const mediaItem = new M3uMedia(Downloader.toSafeFileName(feedItem.title));
@@ -108,5 +108,16 @@ export class Playlist {
         playlist.medias = media;
         this.saveM3U(playlist);
         return this.playlistM3UPath();
+    }
+
+    public static loadItems(m3uPath: string): { title: string, podcast: string }[] {
+        const m3uPlaylist = M3uParser.parse(fs.readFileSync(m3uPath).toString());
+        return m3uPlaylist.medias.map(media => {
+            return {
+                title: media.name,
+                podcast: media.artist
+            }
+        }).filter(x => x.podcast !== undefined && x.title !== undefined) as { title: string, podcast: string }[];
+
     }
 }
