@@ -11,7 +11,6 @@ import { HistoryItem } from "./ingestion/historyItem";
 import { PlaylistConfiguration } from "./playlistConfiguration";
 import { Cache } from "./cache/cache";
 import { FeedItem } from "./feedItem";
-import * as crypto from "crypto"
 
 const DATA_DIR = process.env.PODCASTPLAYLISTDIR || "./data";
 const CACHE_DIR = `${DATA_DIR}/cache`;
@@ -108,6 +107,7 @@ const argv = yargs(helpers.hideBin(process.argv))
             .demand(1, 1);
     })
     .demandCommand(1, 1)
+    .version("0.1.0 (Alpha)")
     .parse() as any;
 
 switch (argv._[0]) {
