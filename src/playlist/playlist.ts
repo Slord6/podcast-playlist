@@ -1,11 +1,7 @@
 import { M3uPlaylist, M3uMedia } from 'm3u-parser-generator';
 import { FeedItem } from '../feedItem';
-import { Feed } from '../feed';
-import { History } from '../ingestion/history';
-import { PlayheadFeed } from './playheadFeed';
 import { Downloader } from '../downloader';
 import * as fs from "fs";
-import { PlaylistConfiguration } from '../playlistConfiguration';
 import { Cache } from '../cache/cache';
 
 export class Playlist {
@@ -23,15 +19,39 @@ export class Playlist {
     public set items(value: FeedItem[]) {
         this._items = value;
     }
+    private _workingDir: string;
 
-    constructor(title: string, items: FeedItem[]) {
+    constructor(title: string, items: FeedItem[], workingDir: string) {
         this._title = title;
         this._items = items;
+        this._workingDir = workingDir;
     }
 
-    public async toM3ULocal(playlistDirectory: string, cache: Cache): Promise<string> {
-        const playlistSafeName = Downloader.toSafeFileName(this.title);
-        const workingDir = `${playlistDirectory}/${playlistSafeName}`;
+    private playlistM3UPath(): string {
+        return `${this.playlistDirectoryPath()}/${Downloader.toSafeFileName(this.title)}.m3u`;
+    }
+
+    public playlistDirectoryPath(): string {
+        return `${this._workingDir}/${Downloader.toSafeFileName(this.title)}`;
+    }
+
+    private createDirectory(): void {
+        if (!fs.existsSync(this.playlistDirectoryPath())) {
+            fs.mkdirSync(this.playlistDirectoryPath(), { recursive: true });
+        }
+    }
+
+    private saveM3U(playlist: M3uPlaylist) {
+        this.createDirectory();
+        const playlistString = playlist.getM3uString();
+        fs.writeFileSync(this.playlistM3UPath(), playlistString);
+    }
+
+    public onDisk(): boolean {
+        return fs.existsSync(this.playlistM3UPath());
+    }
+
+    public async toM3ULocal(cache: Cache): Promise<string> {
         const playlist = new M3uPlaylist();
         playlist.title = this.title;
 
@@ -40,18 +60,37 @@ export class Playlist {
         });
 
         return Promise.all(downloads).then(localFeedItems => {
-            const media: M3uMedia[] = localFeedItems.map((feedItem: FeedItem) => {
-                // Simply use the file name for the url, as it will sit next to the playlist
-                const mediaItem = new M3uMedia(Downloader.toSafeFileName(feedItem.title));
-                mediaItem.name = feedItem.title;
-                mediaItem.artist = feedItem.author;
-                return mediaItem;
+            this.createDirectory();
+            let copies: Promise<void>[] = [];
+            localFeedItems.forEach(item => {
+                try {
+                    copies.push(cache.copy(item, this.playlistDirectoryPath()));
+                } catch (err) {
+                    console.error(`Copying ${item.title} failed: ${err}`);
+                }
             });
-    
-            playlist.medias = media;
-            const playlistString = playlist.getM3uString();
-            fs.writeFileSync(`${workingDir}/${playlistSafeName}.m3u`, playlistString);
-            return playlistString;
+            console.log(`Copying ${copies.length} items from the cache...`);
+            return Promise.allSettled(copies).then((copyRes) => {
+                const failedCopies = copyRes.filter(res => res.status === "rejected");
+                const copyFail = failedCopies.length > 0;
+                if(copyFail) {
+                    console.error("One or more files failed to copy to the playlist output directory:\n", failedCopies.map(res => (res as any).reason).join("\n"));
+                    return "<Not saved>";
+                }
+                console.log(`All items retrieved from the cache. Building playlist...`);
+                
+                const media: M3uMedia[] = localFeedItems.map((feedItem: FeedItem) => {
+                    // Simply use the file name for the url, as it will sit next to the playlist
+                    const mediaItem = new M3uMedia(Downloader.toSafeFileName(feedItem.title));
+                    mediaItem.name = feedItem.title;
+                    mediaItem.artist = feedItem.author;
+                    return mediaItem;
+                });
+
+                playlist.medias = media;
+                this.saveM3U(playlist);
+                return this.playlistDirectoryPath();
+            });
         });
     }
 
@@ -67,6 +106,7 @@ export class Playlist {
         });
 
         playlist.medias = media;
-        return playlist.getM3uString();
+        this.saveM3U(playlist);
+        return this.playlistM3UPath();
     }
 }

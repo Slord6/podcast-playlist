@@ -12,7 +12,7 @@ import { PlaylistConfiguration } from "./playlistConfiguration";
 import { Cache } from "./cache/cache";
 import { FeedItem } from "./feedItem";
 
-const DATA_DIR = "./data"
+const DATA_DIR = process.env.PODCASTPLAYLISTDIR || "./data";
 const CACHE_DIR = `${DATA_DIR}/cache`;
 const PLAYLIST_DIR = `${DATA_DIR}/playlists`;
 const HISTORY_PATH = `${DATA_DIR}/history.json`;
@@ -257,12 +257,21 @@ function createPlaylist(title: string, configPath: string, local: boolean) {
         if (history === null) {
             history = new History([]);
         }
-        const playlist = configuration.generate(title, feeds, history);
+        const playlist = configuration.generate(title, feeds, history, PLAYLIST_DIR);
+        // Check we're not overwriting an existing playlist
+        if(playlist.onDisk()) {
+            console.error(`A playlist called ${title} already exists (${playlist.playlistDirectoryPath()})`);
+            return;
+        }
+
         if (local) {
             const cache = new Cache(CACHE_DIR);
-            playlist.toM3ULocal(PLAYLIST_DIR, cache).then(console.log);
+            playlist.toM3ULocal(cache).then(dirPath => {
+                console.log(`Playlist (local) created at ${dirPath}`);
+            });
         } else {
-            console.log(playlist.toM3U());
+            let playListPath: string = playlist.toM3U();
+            console.log(`Playlist (streaming) file created at ${playListPath}`);
         }
     });
 }

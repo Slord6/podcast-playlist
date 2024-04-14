@@ -5,13 +5,13 @@ import { MimeTypes } from "./mimeTypes";
 import { Cache } from "./cache/cache";
 
 export class Downloader {
-    private _source: URL;
+    private _source: FeedItem;
     private _feedItem: FeedItem;
     private _extension: string | null;
     private _cache: Cache;
 
     constructor(feedItem: FeedItem, cache: Cache) {
-        this._source = feedItem.url;
+        this._source = feedItem;
         const podcastDirName: string = Downloader.toSafeFileName(feedItem.author);
         this._feedItem = new FeedItem(feedItem.title, new URL(`file://${cache.cacheDirectory}/${podcastDirName}/${Downloader.toSafeFileName(feedItem.title)}`), feedItem.pubdate, feedItem.author);
         this._extension = null;
@@ -27,17 +27,19 @@ export class Downloader {
      * @returns Promise to extension string
      */
     private getExtension(): Promise<string> {
-        if(this._extension !== null) return new Promise<string>((r) => r(this._extension!));
-        
-        return fetch(this._source, {
+        if (this._extension !== null) return new Promise<string>((r) => r(this._extension!));
+
+        return fetch(this._source.url, {
             method: "HEAD",
             redirect: "follow"
         }).then(response => {
             const mimeBasedExt = MimeTypes.getAudioExtension(response.headers.get("content-type"));
-            if(mimeBasedExt !== "bin") return mimeBasedExt;
+            if (mimeBasedExt !== "bin") return mimeBasedExt;
+
             const sourceParts = this._source.toString().split(".");
             const possExt = sourceParts[sourceParts.length - 1].toLowerCase();
-            if(MimeTypes.isExtension(possExt)) return possExt;
+            if (MimeTypes.isExtension(possExt)) return possExt;
+            
             return mimeBasedExt;
         });
     }
@@ -46,7 +48,7 @@ export class Downloader {
         return this.getPath().then(path => fs.existsSync(path));
     }
 
-    private getPath(): Promise<string> {
+    public getPath(): Promise<string> {
         const extensionPromise = this.getExtension();
         return extensionPromise.then(extension => {
             const path = `${this._feedItem.url.host}/${this._feedItem.url.pathname}.${extension}`;
@@ -60,12 +62,16 @@ export class Downloader {
                 console.log(`(DOWNLOADER) Downloading ${this._feedItem.title} from ${this._source} to ${path}...`);
                 if (this._cache.cached(this._feedItem)) {
                     console.log(`(DOWNLOADER) File already cached, skipping download (${this._feedItem.title})`);
-                    return resolve(this._feedItem);
+                    resolve(this._source);
                 } else {
-                    fetch(this._source).then(response => {
+                    fetch(this._source.url).then(response => {
                         return stream.Readable.fromWeb(response.body as any).pipe(fs.createWriteStream(path));
                     }).then((ws) => {
-                        ws.on("close", () => resolve(this._feedItem));
+                        ws.on("close", () => {
+                            this._cache.markCachedUnsafe(this._feedItem);
+                            this._cache.save();
+                            resolve(this._source);
+                        });
                     })
                 }
             });
