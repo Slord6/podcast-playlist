@@ -6,6 +6,7 @@ import { RSSFeedImporter } from "../ingestion/rssFeedImporter";
 import { PlayheadFeed } from "../playlist/playheadFeed";
 import { CacheConfig } from "./cacheConfig";
 import * as fs from "fs";
+import * as nodepath from "path";
 
 const CONFIG_FILE_NAME: string = `cache.json`;
 
@@ -31,6 +32,27 @@ export class Cache {
         } else {
             this._cacheConfig = CacheConfig.empty();
         }
+    }
+
+    public copy(feedItem: FeedItem, newDir: string): Promise<void> {
+        if(!this._cacheConfig.cachedContains(feedItem)) {
+            throw new Error("Tried to copy a feed item that isn't in the cache");
+        }
+        // TODO: Having to create the downloader here seems a bit off?
+        const downloader: Downloader = new Downloader(feedItem, this);
+        return downloader.getPath().then(cachePath => {
+            const newPath = `${newDir}/${nodepath.basename(cachePath)}`;
+            console.log(`(CACHE) Copying ${cachePath} to ${newPath}`);
+            fs.copyFileSync(cachePath, newPath);
+        })
+    }
+
+    /**
+     * Doing this without downloading a file can result in
+     * the cache becoming out of sync - be careful!
+     */
+    public markCachedUnsafe(item: FeedItem): void {
+        this._cacheConfig.addToCache(item);
     }
 
     public cacheFeed(feed: Feed, latest: boolean, forced: boolean): Promise<void> {

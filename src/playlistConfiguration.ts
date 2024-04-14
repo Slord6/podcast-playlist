@@ -73,7 +73,7 @@ export class PlaylistConfiguration {
         }
     }
 
-    public generate(title: string, feeds: Feed[], history: History): Playlist {
+    public generate(title: string, feeds: Feed[], history: History, playlistWorkingDir: string): Playlist {
         let feedsCopy = this.filterFeeds(feeds)
             .map(feed => new PlayheadFeed(feed, history, this.feedItemPassesFilters.bind(this)))
             .filter(f => !f.listened);
@@ -88,6 +88,6 @@ export class PlaylistConfiguration {
             feedsCopy = feedsCopy.filter(f => !f.listened);
         }
 
-        return new Playlist(title, list);
+        return new Playlist(title, list, playlistWorkingDir);
     }
 }
