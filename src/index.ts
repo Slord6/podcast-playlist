@@ -11,6 +11,7 @@ import { HistoryItem } from "./ingestion/historyItem";
 import { PlaylistConfiguration } from "./playlistConfiguration";
 import { Cache } from "./cache/cache";
 import { FeedItem } from "./feedItem";
+import * as crypto from "crypto"
 
 const DATA_DIR = process.env.PODCASTPLAYLISTDIR || "./data";
 const CACHE_DIR = `${DATA_DIR}/cache`;
@@ -43,6 +44,11 @@ const argv = yargs(helpers.hideBin(process.argv))
                     .describe("podcastAddict", "Path to the Podcast Addict backup db")
                     .string("playlist")
                     .describe("playlist", "Path to the playlist to mark as listened")
+            })
+            .command("feed", "Mark feed as player", (yargs) => {
+                yargs.string("name")
+                    .describe("name", "Name of the feed to add to the history")
+                    .demandOption("name");
             })
             .command("list", "List items in the history", (yargs) => {
                 yargs.string("name")
@@ -127,6 +133,10 @@ switch (argv._[0]) {
                 args: [
                     argv.name ? argv.name : null
                 ]
+            },
+            "feed": {
+                func: markFeedPlayed,
+                args: [argv.name]
             }
         }, "Invalid history command");
         break;
@@ -259,7 +269,7 @@ function createPlaylist(title: string, configPath: string, local: boolean) {
         }
         const playlist = configuration.generate(title, feeds, history, PLAYLIST_DIR);
         // Check we're not overwriting an existing playlist
-        if(playlist.onDisk()) {
+        if (playlist.onDisk()) {
             console.error(`A playlist called ${title} already exists (${playlist.playlistDirectoryPath()})`);
             return;
         }
@@ -283,10 +293,41 @@ function importHistory(paths: string[]) {
         new PodcastAddictHistoryImporter(path).extract().then((newHistory: History) => {
             console.log("History loaded.");
             history = history.merge(newHistory);
-            fs.writeFileSync(HISTORY_PATH, JSON.stringify(history));
+            saveHistory(history);
         }).catch((err) => {
             console.log("Import failed.", err);
         })
+    });
+}
+
+function saveHistory(history: History) {
+    fs.writeFileSync(HISTORY_PATH, JSON.stringify(history));
+}
+
+function markFeedPlayed(feedName: string) {
+    loadFeeds().then(feeds => {
+        const feed: undefined | Feed = feeds.filter(f => f.name === feedName)[0];
+        if (!feed) {
+            console.error(`No feed called ${feedName} found.`);
+            return;
+        }
+        const history = loadHistory();
+        const time = Date.now();
+        const newHistory = new History(feed.items.map(item => {
+            const histItem = new HistoryItem(
+                {
+                    episodeName: item.title,
+                    episodeUrl: item.url.toString(),
+                    podcastName: feed.name,
+                    playbackDate: time,
+                    // TODO: do we even need the podcast Id?
+                    podcast_id: null
+                }
+            );
+            return histItem;
+        }));
+        saveHistory(history.merge(newHistory));
+        console.log(`Added ${feed.items.length} items from ${feed.name} to history`);
     });
 }
 
