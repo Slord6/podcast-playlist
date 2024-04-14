@@ -11,6 +11,7 @@ import { HistoryItem } from "./ingestion/historyItem";
 import { PlaylistConfiguration } from "./playlistConfiguration";
 import { Cache } from "./cache/cache";
 import { FeedItem } from "./feedItem";
+import { Playlist } from "./playlist/playlist";
 
 const DATA_DIR = process.env.PODCASTPLAYLISTDIR || "./data";
 const CACHE_DIR = `${DATA_DIR}/cache`;
@@ -122,10 +123,8 @@ switch (argv._[0]) {
             "import": {
                 func: importHistory,
                 args: [
-                    [
-                        argv.podcastAddict,
-                        argv.playlist
-                    ].filter(x => x !== undefined)
+                    argv.podcastAddict,
+                    argv.playlist
                 ]
             },
             "list": {
@@ -286,18 +285,37 @@ function createPlaylist(title: string, configPath: string, local: boolean) {
     });
 }
 
-function importHistory(paths: string[]) {
-    paths.forEach(path => {
-        console.log(`Importing history from ${path}`);
-        let history: History = loadHistory();
-        new PodcastAddictHistoryImporter(path).extract().then((newHistory: History) => {
+function importHistory(opmlPath: string, playlistPath: string) {
+    let history: History = loadHistory();
+    const startCount = history.items.length;
+    if (opmlPath) {
+        console.log(`Importing OPML history from ${opmlPath}`);
+        new PodcastAddictHistoryImporter(opmlPath).extract().then((newHistory: History) => {
             console.log("History loaded.");
             history = history.merge(newHistory);
             saveHistory(history);
         }).catch((err) => {
             console.log("Import failed.", err);
-        })
-    });
+        });
+    }
+    if (playlistPath) {
+        console.log(`Importing playlist history from ${playlistPath}`);
+        const items = Playlist.loadItems(playlistPath);
+        history = loadHistory();
+        const time = Date.now();
+        const newHistory = new History(
+            items.map(item => new HistoryItem({
+                episodeName: item.title,
+                episodeUrl: null,
+                playbackDate: time,
+                podcastName: item.podcast,
+                podcast_id: null
+            }))
+        )
+        saveHistory(history.merge(newHistory));
+    }
+    const endCount = loadHistory().items.length;
+    console.log(`${endCount - startCount} items added to history (${endCount} total (may include duplicates))`);
 }
 
 function saveHistory(history: History) {

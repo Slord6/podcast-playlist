@@ -55,7 +55,7 @@ If you have a previous listen history from [Podcast Addict](https://podcastaddic
 
 `history import --podcastAddict "<path/to/export.db>"`
 
-Otherwise, you can add entire feeds to the history with `history feed --name "feedname"` or mark all episodes in a playlist as played - `history import --playlist "path/to/playlist.m3u"` (See issue [#17](https://github.com/Slord6/podcast-playlist/issues/17) for known problem)
+Otherwise, you can add entire feeds to the history with `history feed --name "feedname"` or mark all episodes in a playlist as played - `history import --playlist "path/to/playlist.m3u"`
 
 ### Feed updates and the cache
 
