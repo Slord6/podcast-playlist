@@ -30,7 +30,7 @@ export class HistoryItem {
     public set podcastName(value: string) {
         this._podcastName = value;
     }
-    private _podcastId: number;
+    private _podcastId: number | null;
 
     constructor(row: HistoryRow) {
         this._episodeName = row.episodeName;
