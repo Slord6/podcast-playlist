@@ -40,6 +40,10 @@ export class History {
         });
     }
 
+    public merge(other: History): History {
+        return new History([...this.items, ...other.items]);
+    }
+
     public toString(): string {
         return `History (${this.items.length} items):\n${this.items.map(i => i.toString()).join("\n")}`;
     }
