@@ -1,5 +1,8 @@
 # podcast-playlist
- Create playlists of podcast episodes
+
+This project exists to help me transition podcast listening from [PodcastAddict](https://podcastaddict.com/) to a [Tangara](https://www.crowdsupply.com/cool-tech-zone/tangara). Ultimately it will tie into whatever process the [companion app](https://github.com/haileys/tangara-companion) uses to transfer media and playlists to the device and scrobbling back off.
+
+podcast-playlist currently supports fetching feeds, downloading episodes, building playlists and tracking listen history. It's probably 'good enough' to use, but I've not fully used it in anger yet, so there's likely quirks and bugs yet to be discovered!
 
 ## Install
 
