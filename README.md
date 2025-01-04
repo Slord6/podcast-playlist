@@ -48,7 +48,7 @@ Configuration file:
 
 Then 
 
-`ingest --path "./config.json"`
+`feed ingest --path "./config.json"`
 
 #### History
 
