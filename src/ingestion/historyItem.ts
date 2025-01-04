@@ -41,7 +41,7 @@ export class HistoryItem {
     }
 
     public toString() {
-        console.log(`"${this.episodeName}"(${this.episodeURL ? this.episodeURL.toString() : '<No URL>'}) from "${this.podcastName}" listened to on ${this.listenDate.toLocaleString()}`);
+        return `"${this.episodeName}"(${this.episodeURL ? this.episodeURL.toString() : '<No URL>'}) from "${this.podcastName}" listened to on ${this.listenDate.toLocaleString()}`;
     }
 
     public static fromJSON(json: string): HistoryItem {

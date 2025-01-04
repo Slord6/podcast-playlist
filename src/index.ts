@@ -12,6 +12,7 @@ import { PlaylistConfiguration } from "./playlistConfiguration";
 import { Cache } from "./cache/cache";
 import { FeedItem } from "./feedItem";
 import { Playlist } from "./playlist/playlist";
+import { Logger } from "./logger";
 
 const DATA_DIR = process.env.PODCASTPLAYLISTDIR || "./data";
 const CACHE_DIR = `${DATA_DIR}/cache`;
@@ -107,9 +108,24 @@ const argv = yargs(helpers.hideBin(process.argv))
             })
             .demand(1, 1);
     })
+    .boolean("verbose")
+    .alias("verbose", "v")
+    .describe("verbose", "Moderate verbosity of output")
+    .boolean("veryverbose")
+    .alias("veryverbose", "vv")
+    .describe("veryverbose", "High verbosity of output")
     .demandCommand(1, 1)
     .version("0.1.0 (Alpha)")
     .parse() as any;
+
+if(argv.verbose) {
+    Logger.SetVerbosity("Verbose");
+    Logger.Log("Verbose output enabled", "Verbose");
+}
+if(argv.veryverbose) {
+    Logger.SetVerbosity("VeryVerbose");
+    Logger.Log("Very Verbose output enabled", "VeryVerbose");
+}
 
 switch (argv._[0]) {
     case "feed":
@@ -179,16 +195,16 @@ function handleCommand(command: string, mapping: CommandMapping, errorText: stri
 
 function refreshCache() {
     const cache = new Cache(CACHE_DIR);
-    console.log("Refreshing the cache...");
+    Logger.Log("Refreshing the cache...");
     cache.refresh().then(() => {
-        console.log("Feed refresh complete");
+        Logger.Log("Feed refresh complete");
     });
 }
 
 function updateCache(feedName: string | undefined, latest: boolean, force: boolean) {
     const cache = new Cache(CACHE_DIR);
     if (feedName) {
-        console.log(`Updating cache for ${feedName}...`);
+        Logger.Log(`Updating cache for ${feedName}...`);
         loadFeeds().then(feeds => {
             const feed: Feed | undefined = feeds.filter(feed => feed.name.toLowerCase() === feedName.toLowerCase())[0];
             if (!feed) {
@@ -196,15 +212,15 @@ function updateCache(feedName: string | undefined, latest: boolean, force: boole
             } else {
                 cache.cacheFeed(feed, latest, force).then(() => {
                     cache.save();
-                    console.log("Cache feed update complete");
+                    Logger.Log("Cache feed update complete");
                 });
             }
         });
     } else {
-        console.log("Updating all feeds in the cache...");
+        Logger.Log("Updating all feeds in the cache...");
         cache.update(latest).then(() => {
             cache.save();
-            console.log("Cache update complete");
+            Logger.Log("Cache update complete");
         });
     }
 }
@@ -212,15 +228,15 @@ function updateCache(feedName: string | undefined, latest: boolean, force: boole
 function skipCache(all: boolean, feedName: string, history: boolean) {
     const cache = new Cache(CACHE_DIR);
     if (all) {
-        console.log("Skipping cache of all feed items");
+        Logger.Log("Skipping cache of all feed items");
         cache.skipAll().then(() => {
             cache.save();
-            console.log("Skip complete");
+            Logger.Log("Skip complete");
         });
     } else if (feedName) {
-        console.log(`Skipping cache of ${feedName}...`);
+        Logger.Log(`Skipping cache of ${feedName}...`);
         loadFeeds().then(feeds => {
-            console.log("searching", feeds.length);
+            Logger.Log(`Searching ${feeds.length}`, "Verbose");
             const feed: Feed | undefined = feeds.filter(feed => feed.name.toLowerCase() === feedName.toLowerCase())[0];
             if (!feed) {
                 console.error(`No known feed called "${feed}"`);
@@ -230,7 +246,7 @@ function skipCache(all: boolean, feedName: string, history: boolean) {
             }
         });
     } else if (history) {
-        console.log(`Skipping all items in the history...`);
+        Logger.Log(`Skipping all items in the history...`);
         const currentHistory = loadHistory();
         if (!currentHistory) {
             console.warn("No history available");
@@ -239,7 +255,7 @@ function skipCache(all: boolean, feedName: string, history: boolean) {
         loadFeeds().then(feeds => {
             const historyFeedItems: FeedItem[] = currentHistory.items.map(historyItem => FeedItem.fromHistoryItem(historyItem, feeds))
                 .filter(i => i !== null) as FeedItem[];
-            console.log(`Found ${historyFeedItems.length} items to skip...`);
+            Logger.Log(`Found ${historyFeedItems.length} items to skip...`);
             historyFeedItems.forEach(cache.skipItem.bind(cache));
             cache.save();
         });
@@ -276,11 +292,11 @@ function createPlaylist(title: string, configPath: string, local: boolean) {
         if (local) {
             const cache = new Cache(CACHE_DIR);
             playlist.toM3ULocal(cache).then(dirPath => {
-                console.log(`Playlist (local) created at ${dirPath}`);
+                Logger.Log(`Playlist (local) created at ${dirPath}`);
             });
         } else {
             let playListPath: string = playlist.toM3U();
-            console.log(`Playlist (streaming) file created at ${playListPath}`);
+            Logger.Log(`Playlist (streaming) file created at ${playListPath}`);
         }
     });
 }
@@ -289,17 +305,17 @@ function importHistory(opmlPath: string, playlistPath: string) {
     let history: History = loadHistory();
     const startCount = history.items.length;
     if (opmlPath) {
-        console.log(`Importing OPML history from ${opmlPath}`);
+        Logger.Log(`Importing OPML history from ${opmlPath}`);
         new PodcastAddictHistoryImporter(opmlPath).extract().then((newHistory: History) => {
-            console.log("History loaded.");
+            Logger.Log("History loaded.");
             history = history.merge(newHistory);
             saveHistory(history);
         }).catch((err) => {
-            console.log("Import failed.", err);
+            Logger.Log("Import failed.", err);
         });
     }
     if (playlistPath) {
-        console.log(`Importing playlist history from ${playlistPath}`);
+        Logger.Log(`Importing playlist history from ${playlistPath}`);
         const items = Playlist.loadItems(playlistPath);
         history = loadHistory();
         const time = Date.now();
@@ -315,7 +331,7 @@ function importHistory(opmlPath: string, playlistPath: string) {
         saveHistory(history.merge(newHistory));
     }
     const endCount = loadHistory().items.length;
-    console.log(`${endCount - startCount} items added to history (${endCount} total (may include duplicates))`);
+    Logger.Log(`${endCount - startCount} items added to history (${endCount} total (may include duplicates))`);
 }
 
 function saveHistory(history: History) {
@@ -345,7 +361,7 @@ function markFeedPlayed(feedName: string) {
             return histItem;
         }));
         saveHistory(history.merge(newHistory));
-        console.log(`Added ${feed.items.length} items from ${feed.name} to history`);
+        Logger.Log(`Added ${feed.items.length} items from ${feed.name} to history`);
     });
 }
 
@@ -361,15 +377,15 @@ function loadHistory(): History {
 function listHistory(name: string | null) {
     const history = loadHistory();
     if (history.items.length === 0) {
-        console.log("No history has been imported.");
+        Logger.Log("No history has been imported.");
     } else {
         if (name === null) {
             // Print whole history if no query
-            console.log(history.toString());
+            Logger.Log(history.toString());
         } else {
             const inHistory: HistoryItem[] = history.queryByName(name);
-            console.log(`"${name}" ${inHistory.length > 0 ? "is" : "is not"} in the listen history:`);
-            console.log(inHistory.map(i => i.toString()).join("\n"));
+            Logger.Log(`"${name}" ${inHistory.length > 0 ? "is" : "is not"} in the listen history:`);
+            Logger.Log(inHistory.map(i => i.toString()).join("\n"));
         }
     }
 }
@@ -380,7 +396,7 @@ function loadFeeds(): Promise<Feed[]> {
 
 function list() {
     loadFeeds().then(feeds => {
-        feeds.forEach(f => console.log(f.name));
+        feeds.forEach(f => Logger.Log(f.name));
     });
 }
 
@@ -389,14 +405,14 @@ function newIngest(path: string) {
         fs.mkdirSync(CACHE_DIR);
     }
     const ingestConfig: IngestConfig = IngestConfig.load(path);
-    console.log(`Loaded ${ingestConfig.opmlSources.length} OPML sources and ${ingestConfig.rssSources.length} rss sources`);
-    console.log("Resolving to feeds...");
+    Logger.Log(`Loaded ${ingestConfig.opmlSources.length} OPML sources and ${ingestConfig.rssSources.length} rss sources`);
+    Logger.Log("Resolving to feeds...");
 
     let resolvedFeeds: Feed[] = [];
     const parsing: Promise<any>[] = [];
     ingestConfig.opmlSources.forEach(source => {
         const opmlParse = new OPMLImporter(source).toFeeds().then(feeds => {
-            console.log("OPML resolved to feeds")
+            Logger.Log("OPML resolved to feeds")
             if (feeds !== null) {
                 resolvedFeeds.push(...feeds);
             } else {
@@ -420,8 +436,8 @@ function newIngest(path: string) {
     Promise.all(parsing).then(() => {
         let initialLength = resolvedFeeds.length;
         resolvedFeeds = resolvedFeeds.filter(f => f !== null);
-        console.log(`Feeds loaded, saving ${resolvedFeeds.length} feeds to ${CACHE_DIR} (${initialLength - resolvedFeeds.length} feeds failed to load)`);
-        console.log(resolvedFeeds.map(f => f.name).join("\n"));
+        Logger.Log(`Feeds loaded, saving ${resolvedFeeds.length} feeds to ${CACHE_DIR} (${initialLength - resolvedFeeds.length} feeds failed to load)`);
+        Logger.Log(resolvedFeeds.map(f => f.name).join("\n"));
 
         const cache = new Cache(CACHE_DIR);
         resolvedFeeds.forEach(feed => {

@@ -2,8 +2,10 @@ import { Feed } from "../feed";
 import Parser from 'rss-parser';
 import { FeedItem } from "../feedItem";
 import { BufferedRequests } from "../bufferedRequests";
+import { Logger } from "../logger";
 
 export class RSSFeedImporter {
+    private static _logger = Logger.GetNamedLogger("RSS");
     private rssUrl: URL;
 
     constructor(rssUrl: URL) {
@@ -12,8 +14,8 @@ export class RSSFeedImporter {
 
     public async toFeed(): Promise<Feed | null> {
         const parser: Parser = new Parser();
-        console.log(`(RSS) Parsing ${this.rssUrl}...`);
-        return BufferedRequests.fetch(this.rssUrl).then(resp => resp.text(), (reason) => console.log(`(RSS) Fetch-parse of ${this.rssUrl} failed: ${reason}`))
+        RSSFeedImporter._logger(`Parsing ${this.rssUrl}...`);
+        return BufferedRequests.fetch(this.rssUrl).then(resp => resp.text(), (reason) => console.error(`(RSS) Fetch-parse of ${this.rssUrl} failed: ${reason}`))
             .then(rssText => {
                 if(!rssText) return null;
                 return parser.parseString(rssText).then(feed => {
@@ -29,7 +31,7 @@ export class RSSFeedImporter {
 
                     const imgUrl = feed.image?.url ? new URL(feed.image?.url) : new URL("https://example.com"); // TODO better handling of missing URL
                     const feedObj = new Feed(feedTitle, this.rssUrl, new URL(feed.feedUrl as string), new URL(imgUrl), items);
-                    console.log(`(RSS) Feed "${feedTitle}" parsed`);
+                    RSSFeedImporter._logger(`Feed "${feedTitle}" parsed`);
                     return feedObj;
                 }).catch(reason => {
                     console.error(`(RSS) Could not parse ${this.rssUrl}: ${reason}`);
