@@ -3,8 +3,10 @@ import * as fs from "fs";
 import * as stream from "stream";
 import { MimeTypes } from "./mimeTypes";
 import { Cache } from "./cache/cache";
+import { Logger } from "./logger";
 
 export class Downloader {
+    private static _logger = Logger.GetNamedLogger("DOWNLOADER");
     private _source: FeedItem;
     private _feedItem: FeedItem;
     private _extension: string | null;
@@ -59,9 +61,9 @@ export class Downloader {
     public async download(): Promise<FeedItem> {
         return new Promise((resolve) => {
             this.getPath().then((path) => {
-                console.log(`(DOWNLOADER) Downloading ${this._feedItem.title} from ${this._source} to ${path}...`);
+                Downloader._logger(`Downloading ${this._feedItem.title} from ${this._source} to ${path}...`);
                 if (this._cache.cached(this._feedItem)) {
-                    console.log(`(DOWNLOADER) File already cached, skipping download (${this._feedItem.title})`);
+                    Downloader._logger(`File already cached, skipping download (${this._feedItem.title})`, "Verbose");
                     resolve(this._source);
                 } else {
                     fetch(this._source.url).then(response => {

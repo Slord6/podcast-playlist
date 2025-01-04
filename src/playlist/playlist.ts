@@ -3,8 +3,10 @@ import { FeedItem } from '../feedItem';
 import { Downloader } from '../downloader';
 import * as fs from "fs";
 import { Cache } from '../cache/cache';
+import { Logger } from '../logger';
 
 export class Playlist {
+    private static _logger = Logger.GetNamedLogger("PLAYLIST");
     private _title: string;
     public get title(): string {
         return this._title;
@@ -66,18 +68,18 @@ export class Playlist {
                 try {
                     copies.push(cache.copy(item, this.playlistDirectoryPath()));
                 } catch (err) {
-                    console.error(`Copying ${item.title} failed: ${err}`);
+                    console.error(`(PLAYLIST) Copying ${item.title} failed: ${err}`);
                 }
             });
-            console.log(`Copying ${copies.length} items from the cache...`);
+            Playlist._logger(`Copying ${copies.length} items from the cache...`);
             return Promise.allSettled(copies).then((copyRes) => {
                 const failedCopies = copyRes.filter(res => res.status === "rejected");
                 const copyFail = failedCopies.length > 0;
                 if (copyFail) {
-                    console.error("One or more files failed to copy to the playlist output directory:\n", failedCopies.map(res => (res as any).reason).join("\n"));
+                    console.error("(PLAYLIST) One or more files failed to copy to the playlist output directory:\n", failedCopies.map(res => (res as any).reason).join("\n"));
                     return "<Not saved>";
                 }
-                console.log(`All items retrieved from the cache. Building playlist...`);
+                Playlist._logger(`All items retrieved from the cache. Building playlist...`);
 
                 const media: M3uMedia[] = localFeedItems.map((feedItem: FeedItem) => {
                     // Simply use the file name for the url, as it will sit next to the playlist

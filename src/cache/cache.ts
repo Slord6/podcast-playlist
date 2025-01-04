@@ -3,6 +3,7 @@ import { Feed } from "../feed";
 import { FeedItem } from "../feedItem";
 import { History } from "../ingestion/history";
 import { RSSFeedImporter } from "../ingestion/rssFeedImporter";
+import { Logger } from "../logger";
 import { PlayheadFeed } from "../playlist/playheadFeed";
 import { CacheConfig } from "./cacheConfig";
 import * as fs from "fs";
@@ -11,6 +12,7 @@ import * as nodepath from "path";
 const CONFIG_FILE_NAME: string = `cache.json`;
 
 export class Cache {
+    private static _logger = Logger.GetNamedLogger("CACHE");
     private _workingDir: string;
     private _configPath: string;
     private _cacheConfig: CacheConfig;
@@ -42,7 +44,7 @@ export class Cache {
         const downloader: Downloader = new Downloader(feedItem, this);
         return downloader.getPath().then(cachePath => {
             const newPath = `${newDir}/${nodepath.basename(cachePath)}`;
-            console.log(`(CACHE) Copying ${cachePath} to ${newPath}`);
+            Cache._logger(`Copying ${cachePath} to ${newPath}`, "Verbose");
             fs.copyFileSync(cachePath, newPath);
         })
     }
@@ -56,7 +58,7 @@ export class Cache {
     }
 
     public cacheFeed(feed: Feed, latest: boolean, forced: boolean): Promise<void> {
-        console.log(`(CACHE) Caching feed: ${feed.name}`);
+        Cache._logger(`Caching feed: ${feed.name}`);
         let downloadSequence: Promise<FeedItem | void> = Promise.resolve();
         if(latest) {
             const latest: FeedItem = new PlayheadFeed(feed, new History([]), () => true).latest;
@@ -65,24 +67,24 @@ export class Cache {
                 downloadSequence = downloadSequence.then(() => {
                     return itemDownloader.download().then(() => {
                         this._cacheConfig.addToCache(latest);
-                        console.log(`(CACHE) ${latest.title} cached`);
+                        Cache._logger(`${latest.title} cached`);
                     })
                 });
             } else {
-                console.log(`${latest.title} is already cached or skipped, not downloading`);
+                Cache._logger(`${latest.title} is already cached or skipped, not downloading`);
             }
         } else {
             feed.items.forEach(item => {
                 if(!forced && this.cachedOrSkipped(item)) { 
-                    console.log(`${item.title} is already cached or skipped, not downloading`);
+                    Cache._logger(`${item.title} is already cached or skipped, not downloading`);
                     return;
                 }
-                console.log(`(CACHE) Caching ${item.title}...`);
+                Cache._logger(`Caching ${item.title}...`);
                 const itemDownloader = new Downloader(item, this);
                 downloadSequence = downloadSequence.then(() => {
                     return itemDownloader.download().then(() => {
                         this._cacheConfig.addToCache(item);
-                        console.log(`(CACHE) ${item.title} cached`);
+                        Cache._logger(`${item.title} cached`);
                     })
                 });
             });
@@ -101,14 +103,14 @@ export class Cache {
      * Mark feed as cached, regardless of if we have the file or not
      */
     public skip(feed: Feed) {
-        console.log(`(CACHE) Skipping all items in ${feed.name}`);
+        Cache._logger(`Skipping all items in ${feed.name}`);
         let count = 0;
         feed.items.forEach(item => {
             if(this.cachedOrSkipped(item)) return;
             count ++;
             this._cacheConfig.addToSkip(item);
         });
-        console.log(`(CACHE) ${count} items skipped (of ${feed.items.length} in the feed)`);
+        Cache._logger(`${count} items skipped (of ${feed.items.length} in the feed)`);
     }
 
     public skipItem(item: FeedItem) {
@@ -129,12 +131,12 @@ export class Cache {
         // load all 
         return this.loadFeeds().then(feeds => {
             let imports: Promise<any>[] = [];
-            console.log(`(CACHE) Fetching ${feeds.length} feeds...`);
+            Cache._logger(`Fetching ${feeds.length} feeds...`);
             feeds.forEach(feed => {
                 const rssImport = new RSSFeedImporter(new URL(feed.url)).toFeed().then(newFeed => {
                     if (newFeed !== null) {
                         this.registerFeed(newFeed);
-                        console.log(`(CACHE) ${newFeed.name} updated`);
+                        Cache._logger(`${newFeed.name} updated`);
                     } else {
                         console.warn(`(CACHE) RSS source ${feed.url} failed`);
                     }
@@ -187,8 +189,9 @@ export class Cache {
     }
 
     public save() {
-        console.log("(CACHE) Saving to disk...", this._configPath);
+        Cache._logger("(CACHE) Saving to disk...");
+        Cache._logger(`(CACHE) Saving at ${this._configPath}`);
         fs.writeFileSync(this._configPath, JSON.stringify(this._cacheConfig, null, '\t'));
-        console.log("(CACHE) Saved.");
+        Cache._logger("(CACHE) Saved.");
     }
 }
