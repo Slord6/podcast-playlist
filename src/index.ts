@@ -66,8 +66,8 @@ const argv = yargs(helpers.hideBin(process.argv))
                     .describe("title", "The title of the playlist")
                     .string("configPath")
                     .describe("configPath", "Path to the configuration JSON")
-                    .boolean("local")
-                    .describe("local", "Download and reference the files locally")
+                    .boolean("remote")
+                    .describe("remote", "Reference the files by URL rather than downloading and referencing a local file")
                     .demandOption(["title", "configPath"])
             })
             .demandCommand(1, 1);
@@ -159,7 +159,7 @@ switch (argv._[0]) {
         handleCommand(argv._[1], {
             "create": {
                 func: createPlaylist,
-                args: [argv.title, argv.configPath, argv.local]
+                args: [argv.title, argv.configPath, !argv.remote]
             }
         }, "Invalid playlist command");
         break;
