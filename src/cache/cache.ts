@@ -8,6 +8,8 @@ import { PlayheadFeed } from "../playlist/playheadFeed";
 import { CacheConfig } from "./cacheConfig";
 import * as fs from "fs";
 import * as nodepath from "path";
+import { IAudioMetadata, loadMusicMetadata } from 'music-metadata';
+import { createReadStream } from 'node:fs';
 
 const CONFIG_FILE_NAME: string = `cache.json`;
 
@@ -37,7 +39,7 @@ export class Cache {
     }
 
     public copy(feedItem: FeedItem, newDir: string): Promise<void> {
-        if(!this._cacheConfig.cachedContains(feedItem)) {
+        if (!this._cacheConfig.cachedContains(feedItem)) {
             throw new Error("Tried to copy a feed item that isn't in the cache");
         }
         // TODO: Having to create the downloader here seems a bit off?
@@ -47,6 +49,91 @@ export class Cache {
             Cache._logger(`Copying ${cachePath} to ${newPath}`, "Verbose");
             fs.copyFileSync(cachePath, newPath);
         })
+    }
+
+    public async import(dirPath: string, recursive: boolean) {
+        this.loadFeeds().then(async (feeds: Feed[]) => {
+            try {
+                // Get the files as an array
+                const files = await fs.promises.readdir(dirPath);
+
+                // Loop them all with the new for...of
+                for (const fileName of files) {
+                    // Get the full paths
+                    const filePath = nodepath.join(dirPath, fileName);
+
+                    // Stat the file to see if we have a file or dir
+                    const stat = await fs.promises.stat(filePath);
+
+                    // Dynamic load the music-metadata ESM module
+                    const { parseStream } = await loadMusicMetadata();
+                    if (stat.isFile()) {
+                        try {
+                            // Create a readable stream from a file
+                            const audioStream = createReadStream(filePath);
+
+                            // Parse the metadata from the stream
+                            const metadata = await parseStream(audioStream).catch(() => {
+                                Cache._logger(`Failed to read ${filePath}`);
+                                return undefined;
+                            });
+                            if (metadata == undefined) continue;
+                            const common = metadata.common;
+
+                            const artist = common.artist || common.albumartist || common.album;
+                            const title = common.title;
+
+                            if (artist === undefined || title === undefined) {
+                                Cache._logger(`Could not determine source for ${filePath}`, "Verbose");
+                                continue;
+                            } else {
+                                const matchFeeds = feeds.filter((feed) => feed.name.toLowerCase().trim() === artist.toLowerCase().trim());
+                                if (matchFeeds.length > 1) {
+                                    Cache._logger(`Found too many artist matches for ${filePath} - [${matchFeeds.map(f => f.name).join(",")}]`, "Verbose")
+                                } else if (matchFeeds.length === 0) {
+                                    Cache._logger(`Found no artist matches for ${filePath}`, "Verbose");
+                                } else {
+                                    const match = matchFeeds[0]!;
+                                    Cache._logger(`Matched ${filePath} - to ${match.name}`, "Verbose");
+                                    const matchItems = match.items.filter(i => i.title.toLowerCase().trim() === title.toLowerCase().trim());
+                                    if (matchItems.length > 1) {
+                                        Cache._logger(`Found too many episode matches for ${filePath} - [${matchItems.map(f => f.title).join(",")}]`, "Verbose")
+                                    } else if (matchItems.length === 0) {
+                                        Cache._logger(`Found no episode matches for ${filePath}`, "Verbose");
+                                    } else {
+                                        const match = matchItems[0]!;
+                                        Cache._logger(`Matched ${title} - ${artist} - to ${match.title}`, "Info");
+                                        const downloader = new Downloader(match, this);
+                                        const destinationPath = await downloader.getPath();
+                                        if(!fs.existsSync(destinationPath)) {
+                                            fs.copyFileSync(filePath, destinationPath);
+                                            this._cacheConfig.addToCache(match);
+                                            this.save();
+                                            Cache._logger(`Copying ${title} (${filePath}) - to ${destinationPath}`, "Verbose");
+                                        } else {
+                                            Cache._logger(`Did not copy ${title} (${filePath}). Already a file in the cache at ${destinationPath}`, "Verbose");
+                                        }
+                                    }
+                                }
+                            }
+
+                        } catch (error) {
+                            console.error('Error parsing metadata:', (error as any));
+                        }
+                    }
+                    else if (stat.isDirectory()) {
+                        if (recursive) {
+                            await this.import(filePath, recursive);
+                        }
+                    }
+                }
+            }
+            catch (e) {
+                // Catch anything bad that happens
+                console.error("We've thrown! Whoops!", e);
+            }
+        });
+
     }
 
     /**
@@ -60,9 +147,9 @@ export class Cache {
     public cacheFeed(feed: Feed, latest: boolean, forced: boolean): Promise<void> {
         Cache._logger(`Caching feed: ${feed.name}`);
         let downloadSequence: Promise<FeedItem | void> = Promise.resolve();
-        if(latest) {
+        if (latest) {
             const latest: FeedItem = new PlayheadFeed(feed, new History([]), () => true).latest;
-            if(!this.cachedOrSkipped(latest) || forced) {
+            if (!this.cachedOrSkipped(latest) || forced) {
                 const itemDownloader = new Downloader(latest, this);
                 downloadSequence = downloadSequence.then(() => {
                     return itemDownloader.download().then(() => {
@@ -75,7 +162,7 @@ export class Cache {
             }
         } else {
             feed.items.forEach(item => {
-                if(!forced && this.cachedOrSkipped(item)) { 
+                if (!forced && this.cachedOrSkipped(item)) {
                     Cache._logger(`${item.title} is already cached or skipped, not downloading`);
                     return;
                 }
@@ -106,15 +193,15 @@ export class Cache {
         Cache._logger(`Skipping all items in ${feed.name}`);
         let count = 0;
         feed.items.forEach(item => {
-            if(this.cachedOrSkipped(item)) return;
-            count ++;
+            if (this.cachedOrSkipped(item)) return;
+            count++;
             this._cacheConfig.addToSkip(item);
         });
         Cache._logger(`${count} items skipped (of ${feed.items.length} in the feed)`);
     }
 
     public skipItem(item: FeedItem) {
-        if(this.cachedOrSkipped(item)) return;
+        if (this.cachedOrSkipped(item)) return;
         this._cacheConfig.addToSkip(item);
     }
 
@@ -174,7 +261,7 @@ export class Cache {
         this._cacheConfig.addKey(feed.name);
         const dirName = `${this._workingDir}/${Downloader.toSafeFileName(feed.name)}`;
         if (!fs.existsSync(dirName)) {
-            fs.mkdirSync(dirName, {recursive: true});
+            fs.mkdirSync(dirName, { recursive: true });
         }
         fs.writeFileSync(`${dirName}/feed.json`, JSON.stringify(feed, null, "\t"))
     }

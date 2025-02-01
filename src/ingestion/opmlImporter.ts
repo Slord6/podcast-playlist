@@ -30,12 +30,12 @@ export class OPMLImporter {
     public async toFeeds(): Promise<Feed[] | null> {
         // Does parseStringPromise resolve more than once??
         return parseStringPromise(this.omplXml).then((result: PodcastOmpl) => {
-            OPMLImporter._logger(`(OPML) Loading ${result.opml.body[0].outline.length} feeds...`);
+            OPMLImporter._logger(`Loading ${result.opml.body[0].outline.length} feeds...`);
             return result.opml.body[0].outline.map((outlineItem) => {
                 const feedItem = outlineItem.$;
-                OPMLImporter._logger(`(OPML) Getting RSS for ${feedItem.text}`);
+                OPMLImporter._logger(`Getting RSS for ${feedItem.text}`, "Verbose");
                 return new RSSFeedImporter(new URL(feedItem.xmlUrl)).toFeed().catch((reason) => {
-                    OPMLImporter._logger(`(OPML) Feed import failure when resolving ${feedItem} to feed: ${reason ? reason : ""}`);
+                    console.error(`Feed import failure when resolving ${feedItem} to feed: ${reason ? reason : ""}`);
                 });
             }).filter(f => f !== undefined && f !== null) as Promise<Feed>[];
         }).then(feedPromises => {

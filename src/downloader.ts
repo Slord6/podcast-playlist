@@ -49,6 +49,9 @@ export class Downloader {
         });
     }
 
+    /**
+     * Does the file currently exist in the cache?
+    */
     public exists(): Promise<boolean> {
         return this.getPath().then(path => fs.existsSync(path));
     }
