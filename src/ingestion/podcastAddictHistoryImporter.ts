@@ -20,7 +20,7 @@ export class PodcastAddictHistoryImporter {
         return new Promise((resolve, reject) => {
             const results: HistoryItem[] = [];
             this.db.serialize(() => {
-                this.db.each("SELECT episodes.name as episodeName,episodes.url as episodeUrl,podcasts.name as podcastName,playbackDate,podcast_id from episodes INNER JOIN podcasts on podcast_id = podcasts._id WHERE playbackDate > 0",
+                this.db.each("SELECT episodes.name as episodeName,episodes.download_url as episodeUrl,podcasts.name as podcastName,playbackDate,podcast_id from episodes INNER JOIN podcasts on podcast_id = podcasts._id WHERE playbackDate > 0",
                     (err, row: HistoryRow) => {
                         if (err) {
                             console.error(`(PodcastAddictImporter) DB query error: ${err}`);

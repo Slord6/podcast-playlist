@@ -1,5 +1,5 @@
 import { Feed } from './feed';
-import { FeedItem } from './feedItem';
+import { EpisodeType, FeedItem } from './feedItem';
 import { PlayheadFeed } from './playlist/playheadFeed';
 import { Playlist } from './playlist/playlist';
 import { History } from './ingestion/history';
@@ -7,7 +7,8 @@ import { History } from './ingestion/history';
 type PlaylistFeedConfig = {
     name: string,
     ordered?: boolean,
-    exclude?: string[]
+    exclude?: string[],
+    skipTypes?: EpisodeType[],
 };
 
 type PlaylistConfig = {
@@ -30,7 +31,7 @@ export class PlaylistConfiguration {
                 playlist: {
                     include: [],
                     episodeTitleFilters: [],
-                    count: 0
+                    count: 0,
                 }
             }
         }
@@ -44,12 +45,38 @@ export class PlaylistConfiguration {
         });
     }
 
-    public feedItemPassesFilters(feedItem: FeedItem): boolean {
+    private getFeedConfig(feedName: string): PlaylistFeedConfig | null {
+        const found = this._configuration.playlist.include.filter(f => f.name === feedName)[0];
+        return found ?? null;
+    }
+
+    public feedItemPassesFilters(feedItem: FeedItem, feedName: string): boolean {
+        // Passes if none of the title filters match on it
         const filters = this._configuration.playlist.episodeTitleFilters.map(f => new RegExp(f));
-        // Passes if none of the filters match on it
-        return filters.map(filter => {
+        const namePass = filters.map(filter => {
             return filter.test(feedItem.title);
         }).filter(p => !p).length == 0;
+
+        const feedConfig = this.getFeedConfig(feedName);
+        if (feedConfig === null) {
+            throw new Error(`Could not find feed ${feedName} when applying playlist filters`);
+        }
+
+        // Passes if none of the exclude filters match on it
+        let notExcluded = true;
+        if (feedConfig.exclude) {
+            const filters = feedConfig.exclude.map(f => new RegExp(f));
+            notExcluded = filters.map(filter => {
+                return filter.test(feedItem.title);
+            }).filter(p => !p).length == 0;
+        }
+
+        // Passes if it isn't of one of the types to skip
+        let typePass = true;
+        if (feedConfig.skipTypes) {
+            typePass = !feedConfig.skipTypes.includes(feedItem.type);
+        }
+        return namePass && notExcluded && typePass;
     }
 
     public static fromJSON(json: string): PlaylistConfiguration {
@@ -75,7 +102,7 @@ export class PlaylistConfiguration {
 
     public generate(title: string, feeds: Feed[], history: History, playlistWorkingDir: string): Playlist {
         let feedsCopy = this.filterFeeds(feeds)
-            .map(feed => new PlayheadFeed(feed, history, this.feedItemPassesFilters.bind(this)))
+            .map(feed => new PlayheadFeed(feed, history, (feedItem: FeedItem) => this.feedItemPassesFilters(feedItem, feed.name)))
             .filter(f => !f.listened);
         const list: FeedItem[] = [];
 

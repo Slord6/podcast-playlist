@@ -7,7 +7,7 @@ export class BufferedRequests {
             queue: (() => void)[];
         }
     } = {}
-    public static waitTimeSeconds: number = 5;
+    public static waitTimeSeconds: number = 1;
     private static _logger = Logger.GetNamedLogger("BUFREQ");
 
     private static delay<T>(waitMs: number, result: T): Promise<T> {
@@ -24,7 +24,7 @@ export class BufferedRequests {
                     return resolve(fetch(url));
                 });
             } else {
-                BufferedRequests._logger(`New host: ${url.host}`);
+                BufferedRequests._logger(`New host: ${url.host}`, "Verbose");
                 BufferedRequests.lastRequests[url.host] = {
                     queue: [() => resolve(fetch(url))]
                 }

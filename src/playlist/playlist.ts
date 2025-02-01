@@ -30,22 +30,35 @@ export class Playlist {
     }
 
     private playlistM3UPath(): string {
-        return `${this.playlistDirectoryPath()}/${Downloader.toSafeFileName(this.title)}.m3u`;
+        return `${this.playlistDirectoryPath()}/${Downloader.toSafeFileName(this.title)}.playlist`;
+    }
+    
+    private localFilesRootDir(): string {
+        return `${this.playlistDirectoryPath()}/Podcasts`;
+    }
+
+    private localFileDirPath(feedItem: FeedItem, relative: boolean = false): string {
+        const root = relative ? `Podcasts` : this.localFilesRootDir();
+        return `${root}/${Downloader.toSafeFileName(feedItem.author)}`
     }
 
     public playlistDirectoryPath(): string {
         return `${this._workingDir}/${Downloader.toSafeFileName(this.title)}`;
     }
 
-    private createDirectory(): void {
-        if (!fs.existsSync(this.playlistDirectoryPath())) {
-            fs.mkdirSync(this.playlistDirectoryPath(), { recursive: true });
+    private createDirectories(): void {
+        if(!fs.existsSync(this.localFilesRootDir())) {
+            fs.mkdirSync(this.localFilesRootDir(), { recursive: true });
         }
     }
 
     private saveM3U(playlist: M3uPlaylist) {
-        this.createDirectory();
-        const playlistString = playlist.getM3uString();
+        this.createDirectories();
+        let playlistString = playlist.getM3uString();
+
+        // TODO - remove when Tanagra correctly ignores comment lines
+        playlistString = playlistString.split("\n").filter(l => !l.startsWith("#")).join("\n");
+
         fs.writeFileSync(this.playlistM3UPath(), playlistString);
     }
 
@@ -57,21 +70,25 @@ export class Playlist {
         const playlist = new M3uPlaylist();
         playlist.title = this.title;
 
-        const downloads: Promise<FeedItem>[] = this.items.map((feedItem: FeedItem) => {
+        const downloads: Promise<{item: FeedItem, path: string}>[] = this.items.map((feedItem: FeedItem) => {
             return new Downloader(feedItem, cache).download();
         });
 
         return Promise.all(downloads).then(localFeedItems => {
-            this.createDirectory();
+            this.createDirectories();
             let copies: Promise<void>[] = [];
             localFeedItems.forEach(item => {
                 try {
-                    copies.push(cache.copy(item, this.playlistDirectoryPath()));
+                    const dest = this.localFileDirPath(item.item);
+                    if(!fs.existsSync(dest)) {
+                        fs.mkdirSync(dest);
+                    }
+                    copies.push(cache.copy(item.item, dest));
                 } catch (err) {
-                    console.error(`(PLAYLIST) Copying ${item.title} failed: ${err}`);
+                    console.error(`(PLAYLIST) Copying ${item.item.title} failed: ${err}`);
                 }
             });
-            Playlist._logger(`Copying ${copies.length} items from the cache...`);
+            Playlist._logger(`Copying ${copies.length} items from the cache...`, "Verbose");
             return Promise.allSettled(copies).then((copyRes) => {
                 const failedCopies = copyRes.filter(res => res.status === "rejected");
                 const copyFail = failedCopies.length > 0;
@@ -80,12 +97,15 @@ export class Playlist {
                     return "<Not saved>";
                 }
                 Playlist._logger(`All items retrieved from the cache. Building playlist...`);
-
-                const media: M3uMedia[] = localFeedItems.map((feedItem: FeedItem) => {
+                
+                const media: M3uMedia[] = localFeedItems.map((feedItem) => {
+                    Playlist._logger(`Creating media line for ${feedItem.item.title} (${feedItem.path})`, "VeryVerbose");
                     // Simply use the file name for the url, as it will sit next to the playlist
-                    const mediaItem = new M3uMedia(Downloader.toSafeFileName(feedItem.title));
-                    mediaItem.name = feedItem.title;
-                    mediaItem.artist = feedItem.author;
+                    const parts = feedItem.path.split(".");
+                    const ext = parts[parts.length - 1];
+                    const mediaItem = new M3uMedia(`${this.localFileDirPath(feedItem.item, true)}/${Downloader.toSafeFileName(feedItem.item.title)}.${ext}`);
+                    mediaItem.name = feedItem.item.title;
+                    mediaItem.artist = feedItem.item.author;
                     return mediaItem;
                 });
 
@@ -120,6 +140,5 @@ export class Playlist {
                 podcast: media.artist
             }
         }).filter(x => x.podcast !== undefined && x.title !== undefined) as { title: string, podcast: string }[];
-
     }
 }

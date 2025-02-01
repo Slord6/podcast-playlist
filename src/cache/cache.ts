@@ -79,7 +79,7 @@ export class Cache {
                     Cache._logger(`${item.title} is already cached or skipped, not downloading`);
                     return;
                 }
-                Cache._logger(`Caching ${item.title}...`);
+                Cache._logger(`Caching ${item.title}...`, "Verbose");
                 const itemDownloader = new Downloader(item, this);
                 downloadSequence = downloadSequence.then(() => {
                     return itemDownloader.download().then(() => {
@@ -132,11 +132,14 @@ export class Cache {
         return this.loadFeeds().then(feeds => {
             let imports: Promise<any>[] = [];
             Cache._logger(`Fetching ${feeds.length} feeds...`);
+            let counter = 0;
             feeds.forEach(feed => {
                 const rssImport = new RSSFeedImporter(new URL(feed.url)).toFeed().then(newFeed => {
+                    counter++;
+                    const percent = Math.round((counter / feeds.length) * 100);
                     if (newFeed !== null) {
                         this.registerFeed(newFeed);
-                        Cache._logger(`${newFeed.name} updated`);
+                        Cache._logger(`(${percent}%) ${newFeed.name} updated`);
                     } else {
                         console.warn(`(CACHE) RSS source ${feed.url} failed`);
                     }
@@ -189,9 +192,8 @@ export class Cache {
     }
 
     public save() {
-        Cache._logger("(CACHE) Saving to disk...");
-        Cache._logger(`(CACHE) Saving at ${this._configPath}`);
+        Cache._logger(`Saving at ${this._configPath}`, "Verbose");
         fs.writeFileSync(this._configPath, JSON.stringify(this._cacheConfig, null, '\t'));
-        Cache._logger("(CACHE) Saved.");
+        Cache._logger("Saved.");
     }
 }

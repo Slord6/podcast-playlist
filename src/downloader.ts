@@ -15,13 +15,13 @@ export class Downloader {
     constructor(feedItem: FeedItem, cache: Cache) {
         this._source = feedItem;
         const podcastDirName: string = Downloader.toSafeFileName(feedItem.author);
-        this._feedItem = new FeedItem(feedItem.title, new URL(`file://${cache.cacheDirectory}/${podcastDirName}/${Downloader.toSafeFileName(feedItem.title)}`), feedItem.pubdate, feedItem.author);
+        this._feedItem = new FeedItem(feedItem.title, new URL(`file://${cache.cacheDirectory}/${podcastDirName}/${Downloader.toSafeFileName(feedItem.title)}`), feedItem.pubdate, feedItem.author, feedItem.type);
         this._extension = null;
         this._cache = cache;
     }
 
     public static toSafeFileName(unsafe: string): string {
-        return (unsafe.replace(/[ &\/\\#,+()$~%.'":*?<>{}\|]/g, ""));
+        return (unsafe.replace(/[& \/\\#,+()$~%.'":*?<>{}\|]/g, "").replace(/%20/, "\ "));
     }
 
     /**
@@ -41,7 +41,7 @@ export class Downloader {
             const sourceParts = this._source.toString().split(".");
             const possExt = sourceParts[sourceParts.length - 1].toLowerCase();
             if (MimeTypes.isExtension(possExt)) return possExt;
-            
+
             return mimeBasedExt;
         });
     }
@@ -58,21 +58,22 @@ export class Downloader {
         });
     }
 
-    public async download(): Promise<FeedItem> {
+    public async download(): Promise<{ item: FeedItem, path: string }> {
         return new Promise((resolve) => {
             this.getPath().then((path) => {
-                Downloader._logger(`Downloading ${this._feedItem.title} from ${this._source} to ${path}...`);
                 if (this._cache.cached(this._feedItem)) {
-                    Downloader._logger(`File already cached, skipping download (${this._feedItem.title})`, "Verbose");
-                    resolve(this._source);
+                    Downloader._logger(`File already cached, skipping download (${this._feedItem.title})`);
+                    resolve({ item: this._source, path });
                 } else {
+                    Downloader._logger(`Downloading ${this._feedItem.title}...`);
+                    Downloader._logger(`${this._source} ---> ${path}`, "Verbose");
                     fetch(this._source.url).then(response => {
                         return stream.Readable.fromWeb(response.body as any).pipe(fs.createWriteStream(path));
                     }).then((ws) => {
                         ws.on("close", () => {
                             this._cache.markCachedUnsafe(this._feedItem);
                             this._cache.save();
-                            resolve(this._source);
+                            resolve({ item: this._source, path });
                         });
                     })
                 }

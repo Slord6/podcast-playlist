@@ -38,6 +38,7 @@ export class Feed {
         this._items = value;
     }
 
+
     constructor(name: string, url: URL, webPage: URL, imageUrl: URL, items: FeedItem[] = []) {
         this._name = name;
         this._url = url;

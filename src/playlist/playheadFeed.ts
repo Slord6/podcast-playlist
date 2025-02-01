@@ -31,7 +31,7 @@ export class PlayheadFeed {
             const dateA = a.published;
             const dateB = b.published;
             if (dateA === null || dateB === null) {
-                console.warn(`(PlayheadFeed) Cannot determine episode order of [${a}] and [${b}]`);
+                console.warn(`(PLAYHEADFEED) Cannot determine episode order of [${a}] and [${b}]`);
                 return 0;
             } else {
                 return dateA.getTime() - dateB.getTime();

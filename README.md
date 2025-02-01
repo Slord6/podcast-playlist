@@ -116,6 +116,11 @@ Configuration file:
             {
                 "name": "Pitch, Please",
                 "ordered": false
+            },
+            {
+                "name": "Regulation Podcast",
+                "ordered": false,
+                "skipTypes": ["bonus"]
             }
         ],
         "episodeTitleFilters": [

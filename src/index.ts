@@ -46,7 +46,7 @@ const argv = yargs(helpers.hideBin(process.argv))
                     .string("playlist")
                     .describe("playlist", "Path to the playlist to mark as listened")
             })
-            .command("feed", "Mark feed as player", (yargs) => {
+            .command("feed", "Mark feed as played", (yargs) => {
                 yargs.string("name")
                     .describe("name", "Name of the feed to add to the history")
                     .demandOption("name");
@@ -118,13 +118,14 @@ const argv = yargs(helpers.hideBin(process.argv))
     .version("0.1.0 (Alpha)")
     .parse() as any;
 
-if(argv.verbose) {
-    Logger.SetVerbosity("Verbose");
-    Logger.Log("Verbose output enabled", "Verbose");
-}
 if(argv.veryverbose) {
     Logger.SetVerbosity("VeryVerbose");
     Logger.Log("Very Verbose output enabled", "VeryVerbose");
+} else if(argv.verbose) {
+    Logger.SetVerbosity("Verbose");
+    Logger.Log("Verbose output enabled", "Verbose");
+} else {
+    Logger.SetVerbosity("Info");
 }
 
 switch (argv._[0]) {

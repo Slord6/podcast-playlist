@@ -1,6 +1,8 @@
 import { Feed } from "./feed";
 import { HistoryItem } from "./ingestion/historyItem";
 
+export type EpisodeType = "bonus" | "full" | "trailer";
+
 export class FeedItem {
     private _title: string;
     public get title(): string {
@@ -37,12 +39,20 @@ export class FeedItem {
     public set author(value: string) {
         this._author = value;
     }
+    private _type: EpisodeType;
+    public get type(): EpisodeType {
+        return this._type;
+    }
+    public set type(value: EpisodeType) {
+        this._type = value;
+    }
 
-    constructor(title: string, url: URL, pubdate: string, author: string) {
+    constructor(title: string, url: URL, pubdate: string, author: string, type: EpisodeType) {
         this._title = title;
         this._url = url;
         this._pubdate = pubdate;
         this._author = author;
+        this._type = type;
     }
 
     public toString(): string {
@@ -51,7 +61,7 @@ export class FeedItem {
 
     public static fromJSON(json: string): FeedItem {
         const rawItem = JSON.parse(json);
-        return new FeedItem(rawItem._title, new URL(rawItem._url), rawItem._pubdate, rawItem._author);
+        return new FeedItem(rawItem._title, new URL(rawItem._url), rawItem._pubdate, rawItem._author, rawItem._type || "full");
     }
 
     public static fromHistoryItem(historyItem: HistoryItem, feeds: Feed[]): FeedItem | null {
