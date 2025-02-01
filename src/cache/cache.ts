@@ -54,25 +54,19 @@ export class Cache {
     public async import(dirPath: string, recursive: boolean) {
         this.loadFeeds().then(async (feeds: Feed[]) => {
             try {
-                // Get the files as an array
                 const files = await fs.promises.readdir(dirPath);
 
-                // Loop them all with the new for...of
                 for (const fileName of files) {
-                    // Get the full paths
                     const filePath = nodepath.join(dirPath, fileName);
 
-                    // Stat the file to see if we have a file or dir
                     const stat = await fs.promises.stat(filePath);
 
                     // Dynamic load the music-metadata ESM module
                     const { parseStream } = await loadMusicMetadata();
                     if (stat.isFile()) {
                         try {
-                            // Create a readable stream from a file
                             const audioStream = createReadStream(filePath);
 
-                            // Parse the metadata from the stream
                             const metadata = await parseStream(audioStream).catch(() => {
                                 Cache._logger(`Failed to read ${filePath}`);
                                 return undefined;
@@ -129,8 +123,7 @@ export class Cache {
                 }
             }
             catch (e) {
-                // Catch anything bad that happens
-                console.error("We've thrown! Whoops!", e);
+                console.error("(CACHE) Importing failed. Cache files may be in invalid state", e);
             }
         });
 
