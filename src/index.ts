@@ -106,6 +106,13 @@ const argv = yargs(helpers.hideBin(process.argv))
                         return true;
                     });
             })
+            .command("import", "Import exsiting audio files into the cache", (yargs) => {
+                yargs.string("path")
+                .describe("path", "The path to the directory containing all the files")
+                .boolean("recursive")
+                .describe("recursive", "If set, recurses into subdirectories to find more files")
+                .demandOption("path")
+            })
             .demand(1, 1);
     })
     .boolean("verbose")
@@ -177,12 +184,22 @@ switch (argv._[0]) {
             "skip": {
                 func: skipCache,
                 args: [argv.all, argv.feed, argv.history]
+            },
+            "import": {
+                func: importCacheFiles,
+                args: [argv.path, argv.recursive]
             }
         }, "Invalid cache command");
         break;
     default:
         console.error(`${argv._} is not a valid command`);
         break;
+}
+
+function importCacheFiles(path: string, recursive: boolean | undefined) {
+    const cache = new Cache(CACHE_DIR);
+    Logger.Log(`Importing existing files from ${path}`);
+    cache.import(path, recursive === true);
 }
 
 function handleCommand(command: string, mapping: CommandMapping, errorText: string) {
