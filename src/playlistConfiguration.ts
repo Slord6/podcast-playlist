@@ -106,6 +106,8 @@ export class PlaylistConfiguration {
             .filter(f => !f.listened);
         const list: FeedItem[] = [];
 
+        // TODO: support weightings in the playlist config
+
         while (feedsCopy.length > 0 && list.length < this.count) {
             PlaylistConfiguration.shuffleInPlace(feedsCopy);
             const chosen = feedsCopy[0];

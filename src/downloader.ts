@@ -43,6 +43,9 @@ export class Downloader {
             if (MimeTypes.isExtension(possExt)) return possExt;
 
             return mimeBasedExt;
+        }).catch((err) => {
+            Downloader._logger(`Could not resolve extension for ${this._feedItem.title}. File will use a '.unknown' extension`);
+            return `.unknown`;
         });
     }
 
@@ -68,14 +71,32 @@ export class Downloader {
                     Downloader._logger(`Downloading ${this._feedItem.title}...`);
                     Downloader._logger(`${this._source} ---> ${path}`, "Verbose");
                     fetch(this._source.url).then(response => {
-                        return stream.Readable.fromWeb(response.body as any).pipe(fs.createWriteStream(path));
+                        const webStream = stream.Readable.fromWeb(response.body as any).on("error", (err) => {
+                            console.error(`(DOWNLOADER) Failed to download ${this._feedItem.title}`);
+                            Downloader._logger(err.name, "Verbose");
+                            Downloader._logger(err.message, "VeryVerbose");
+                            Downloader._logger(err.name, "VeryVerbose");
+                        });
+                        
+                        webStream.pipe(fs.createWriteStream(path));
+
+                        return webStream;
                     }).then((ws) => {
                         ws.on("close", () => {
                             this._cache.markCachedUnsafe(this._feedItem);
                             this._cache.save();
                             resolve({ item: this._source, path });
                         });
-                    })
+                        ws.on("error", (err) => {
+                            console.error(`(DOWNLOADER) Failed to download ${this._feedItem.title}`);
+                            Downloader._logger(err.name, "Verbose");
+                            Downloader._logger(err.message, "VeryVerbose");
+                            Downloader._logger(err.stack ?? "<no trace>", "VeryVerbose");
+                        });
+                    }).catch((err) => {
+                        console.error(`(DOWNLOADER) Failed to download ${this._feedItem.title}`);
+                        Downloader._logger(err, "VeryVerbose");
+                    });
                 }
             });
         });
