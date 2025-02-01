@@ -10,8 +10,7 @@ export class Logger {
         if(this._verbosity === "Verbose" && (verbosity === "Verbose" || verbosity === "Info")) return true;
         if(this._verbosity === "Info" && verbosity === "Info") return true;
         
-        // Unreachable
-        return true;
+        return false;
     }
 
     public static SetVerbosity(verbosity: Verbosity) {
