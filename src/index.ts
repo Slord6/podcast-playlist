@@ -111,6 +111,8 @@ const argv = yargs(helpers.hideBin(process.argv))
                 .describe("path", "The path to the directory containing all the files")
                 .boolean("recursive")
                 .describe("recursive", "If set, recurses into subdirectories to find more files")
+                .boolean("ignoreArtist")
+                .describe("ignoreArtist", "If set, will ignore artist values in file metadata and try to match only on the title")
                 .demandOption("path")
             })
             .demand(1, 1);
@@ -187,7 +189,7 @@ switch (argv._[0]) {
             },
             "import": {
                 func: importCacheFiles,
-                args: [argv.path, argv.recursive]
+                args: [argv.path, argv.recursive, argv.ignoreArtist]
             }
         }, "Invalid cache command");
         break;
@@ -196,10 +198,11 @@ switch (argv._[0]) {
         break;
 }
 
-function importCacheFiles(path: string, recursive: boolean | undefined) {
+function importCacheFiles(path: string, recursive: boolean | undefined, ignoreArtist: boolean | undefined) {
     const cache = new Cache(CACHE_DIR);
     Logger.Log(`Importing existing files from ${path}`);
-    cache.import(path, recursive === true);
+    Logger.Log(`Importing with settings: recursive: ${recursive}, ignoreArtist: ${ignoreArtist}`, "VeryVerbose");
+    cache.import(path, recursive === true, ignoreArtist === true);
 }
 
 function handleCommand(command: string, mapping: CommandMapping, errorText: string) {

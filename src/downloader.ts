@@ -10,6 +10,9 @@ export class Downloader {
     private _source: FeedItem;
     private _feedItem: FeedItem;
     private _extension: string | null;
+    public set extension(value: string) {
+        this._extension = value;
+    }
     private _cache: Cache;
 
     constructor(feedItem: FeedItem, cache: Cache) {
@@ -73,7 +76,7 @@ export class Downloader {
                 } else {
                     Downloader._logger(`Downloading ${this._feedItem.title}...`);
                     Downloader._logger(`${this._source} ---> ${path}`, "Verbose");
-                    fetch(this._source.url).then(response => {
+                    fetch(this._source.url, {redirect: "follow"}).then(response => {
                         const webStream = stream.Readable.fromWeb(response.body as any).on("error", (err) => {
                             console.error(`(DOWNLOADER) Failed to download ${this._feedItem.title}`);
                             Downloader._logger(err.name, "Verbose");

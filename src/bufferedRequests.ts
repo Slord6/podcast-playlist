@@ -26,7 +26,7 @@ export class BufferedRequests {
             } else {
                 BufferedRequests._logger(`New host: ${url.host}`, "Verbose");
                 BufferedRequests.lastRequests[url.host] = {
-                    queue: [() => resolve(fetch(url))]
+                    queue: [() => resolve(fetch(url, {redirect: "follow"}))]
                 }
                 const interval = setInterval(() => {
                     const queue = BufferedRequests.lastRequests[url.host].queue;

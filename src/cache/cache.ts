@@ -8,8 +8,9 @@ import { PlayheadFeed } from "../playlist/playheadFeed";
 import { CacheConfig } from "./cacheConfig";
 import * as fs from "fs";
 import * as nodepath from "path";
-import { IAudioMetadata, loadMusicMetadata } from 'music-metadata';
+import { IAudioMetadata, ICommonTagsResult, loadMusicMetadata } from 'music-metadata';
 import { createReadStream } from 'node:fs';
+import path from "node:path";
 
 const CONFIG_FILE_NAME: string = `cache.json`;
 
@@ -51,10 +52,45 @@ export class Cache {
         })
     }
 
-    public async import(dirPath: string, recursive: boolean) {
+    private determineArtist(common: ICommonTagsResult, feeds: Feed[]): Feed | null {
+        const artist = common.artist || common.albumartist || common.album;
+
+        if (artist === undefined) return null;
+
+        const matchFeeds = feeds.filter((feed) => feed.name.toLowerCase().trim() === artist.toLowerCase().trim());
+        if (matchFeeds.length !== 1) {
+            return null;
+        } else {
+            return matchFeeds[0];
+        }
+    }
+
+    private determineFeedItem(common: ICommonTagsResult, feeds: Feed[]): FeedItem | null {
+        const title = common.title;
+        if (title === undefined) return null;
+
+        for (let i = 0; i < feeds.length; i++) {
+            const feed = feeds[i];
+
+            const matchItems = feed.items.filter(i => i.title.toLowerCase().trim() === title.toLowerCase().trim());
+            if (matchItems.length !== 1) {
+                continue;
+            } else {
+                Cache._logger(`Item match! ${title}: ${matchItems[0].title}, ${matchItems[0].author}`, "VeryVerbose");
+                return matchItems[0];
+            }
+        }
+        return null;
+    }
+
+    public async import(dirPath: string, recursive: boolean, ignoreArtist: boolean): Promise<void> {
         this.loadFeeds().then(async (feeds: Feed[]) => {
             try {
                 const files = await fs.promises.readdir(dirPath);
+
+                if (files.length > 0) {
+                    Cache._logger(`Checking files in ${dirPath}`);
+                }
 
                 for (const fileName of files) {
                     const filePath = nodepath.join(dirPath, fileName);
@@ -69,46 +105,36 @@ export class Cache {
 
                             const metadata = await parseStream(audioStream).catch(() => {
                                 Cache._logger(`Failed to read ${filePath}`);
-                                return undefined;
+                                return null;
                             });
                             if (metadata == undefined) continue;
                             const common = metadata.common;
+                            Cache._logger(`${filePath}: ${[common.title, common.artist, common.artists, common.album]}`, "VeryVerbose");
 
-                            const artist = common.artist || common.albumartist || common.album;
-                            const title = common.title;
-
-                            if (artist === undefined || title === undefined) {
-                                Cache._logger(`Could not determine source for ${filePath}`, "Verbose");
+                            const artist = this.determineArtist(common, feeds);
+                            if (artist === null && !ignoreArtist) {
+                                Cache._logger(`Could not find artist matches for ${filePath}, skipping`, "Verbose");
                                 continue;
+                            }
+                            const searchFeeds = (artist !== null && !ignoreArtist) ? [artist] : feeds;
+                            Cache._logger(`Found artist: ${artist?.name}. Matching against: ${searchFeeds.length} feeds (ignore artist: ${ignoreArtist}).`, "VeryVerbose");
+                            const item = this.determineFeedItem(common, searchFeeds);
+                            if (item === null) {
+                                Cache._logger(`Could not match ${filePath} to a feed item (searched ${searchFeeds.length} feeds)`, "Verbose");
+                                continue;
+                            }
+                            Cache._logger(`Matched ${item.title} to feed item authored by ${item.author}`, "Info");
+
+                            const downloader = new Downloader(item, this);
+                            downloader.extension = path.extname(filePath);
+                            const destinationPath = await downloader.getPath();
+                            if (!fs.existsSync(destinationPath)) {
+                                Cache._logger(`Copying ${item.title} (${filePath}) - to ${destinationPath}`, "Verbose");
+                                fs.copyFileSync(filePath, destinationPath);
+                                this._cacheConfig.addToCache(item);
+                                this.save();
                             } else {
-                                const matchFeeds = feeds.filter((feed) => feed.name.toLowerCase().trim() === artist.toLowerCase().trim());
-                                if (matchFeeds.length > 1) {
-                                    Cache._logger(`Found too many artist matches for ${filePath} - [${matchFeeds.map(f => f.name).join(",")}]`, "Verbose")
-                                } else if (matchFeeds.length === 0) {
-                                    Cache._logger(`Found no artist matches for ${filePath}`, "Verbose");
-                                } else {
-                                    const match = matchFeeds[0]!;
-                                    Cache._logger(`Matched ${filePath} - to ${match.name}`, "Verbose");
-                                    const matchItems = match.items.filter(i => i.title.toLowerCase().trim() === title.toLowerCase().trim());
-                                    if (matchItems.length > 1) {
-                                        Cache._logger(`Found too many episode matches for ${filePath} - [${matchItems.map(f => f.title).join(",")}]`, "Verbose")
-                                    } else if (matchItems.length === 0) {
-                                        Cache._logger(`Found no episode matches for ${filePath}`, "Verbose");
-                                    } else {
-                                        const match = matchItems[0]!;
-                                        Cache._logger(`Matched ${title} - ${artist} - to ${match.title}`, "Info");
-                                        const downloader = new Downloader(match, this);
-                                        const destinationPath = await downloader.getPath();
-                                        if(!fs.existsSync(destinationPath)) {
-                                            fs.copyFileSync(filePath, destinationPath);
-                                            this._cacheConfig.addToCache(match);
-                                            this.save();
-                                            Cache._logger(`Copying ${title} (${filePath}) - to ${destinationPath}`, "Verbose");
-                                        } else {
-                                            Cache._logger(`Did not copy ${title} (${filePath}). Already a file in the cache at ${destinationPath}`, "Verbose");
-                                        }
-                                    }
-                                }
+                                Cache._logger(`Did not copy ${item.title} (${filePath}). Already a file in the cache at ${destinationPath}`, "Verbose");
                             }
 
                         } catch (error) {
@@ -117,7 +143,8 @@ export class Cache {
                     }
                     else if (stat.isDirectory()) {
                         if (recursive) {
-                            await this.import(filePath, recursive);
+                            this.import(filePath, recursive, ignoreArtist).then((res) => {
+                            });
                         }
                     }
                 }
