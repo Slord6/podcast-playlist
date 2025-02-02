@@ -1,6 +1,6 @@
 # podcast-playlist
 
-This project exists to help me transition podcast listening from [PodcastAddict](https://podcastaddict.com/) to a [Tangara](https://www.crowdsupply.com/cool-tech-zone/tangara). Ultimately it will tie into whatever process the [companion app](https://github.com/haileys/tangara-companion) uses to transfer media and playlists to the device and scrobbling back off.
+This project exists to help me transition podcast listening from [PodcastAddict](https://podcastaddict.com/) to a [Tangara](https://www.crowdsupply.com/cool-tech-zone/tangara).
 
 podcast-playlist currently supports fetching feeds, downloading episodes, building playlists and tracking listen history. It's probably 'good enough' to use, but I've not fully used it in anger yet, so there's likely quirks and bugs yet to be discovered!
 
@@ -94,7 +94,11 @@ You can also manually curate a history JSON and replace the one in the root data
 
 #### Audio
 
-Importing existing audio files is being tracked in issue [#15](https://github.com/Slord6/podcast-playlist/issues/15).
+Existing files can be imported provided there is enough metadata to match the file to an item in a feed.
+
+`cache import --path /home/user/Music/Podcasts/ --recursive --ignoreArtist`
+
+Removing `--ignoreArtist` will be quicker, but will mean that podcasts that have changed names, or files that don't have a valid tag (e.g. `artist`), will not find a match.
 
 ### Playlist creation
 
