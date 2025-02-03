@@ -4,10 +4,14 @@ import * as stream from "stream";
 import { MimeTypes } from "./mimeTypes";
 import { Cache } from "./cache/cache";
 import { Logger } from "./logger";
+import {Metadata} from "./cache/metadata"
 
 export class Downloader {
     private static _logger = Logger.GetNamedLogger("DOWNLOADER");
     private _source: FeedItem;
+    public get source(): FeedItem {
+        return this._source;
+    }
     private _feedItem: FeedItem;
     private _extension: string | null;
     public set extension(value: string) {
@@ -31,7 +35,7 @@ export class Downloader {
      * Get the extension for the podcast based on the 
      * @returns Promise to extension string
      */
-    private getExtension(): Promise<string> {
+    public getExtension(): Promise<string> {
         if (this._extension !== null) return new Promise<string>((r) => r(this._extension!));
 
         return fetch(this._source.url, {
@@ -39,12 +43,19 @@ export class Downloader {
             redirect: "follow"
         }).then(response => {
             const mimeBasedExt = MimeTypes.getAudioExtension(response.headers.get("content-type"));
-            if (mimeBasedExt !== "bin") return mimeBasedExt;
-
+            if (mimeBasedExt !== "bin") {
+                this._extension = mimeBasedExt;
+                return mimeBasedExt;
+            }
+            
             const sourceParts = this._source.toString().split(".");
             const possExt = sourceParts[sourceParts.length - 1].toLowerCase();
-            if (MimeTypes.isExtension(possExt)) return possExt;
-
+            if (MimeTypes.isExtension(possExt)) {
+                this._extension = possExt;
+                return possExt;
+            }
+            
+            this._extension = mimeBasedExt;
             return mimeBasedExt;
         }).catch((err) => {
             Downloader._logger(`Could not resolve extension for ${this._feedItem.title}. File will use a '.unknown' extension`);
@@ -76,21 +87,25 @@ export class Downloader {
                 } else {
                     Downloader._logger(`Downloading ${this._feedItem.title}...`);
                     Downloader._logger(`${this._source} ---> ${path}`, "Verbose");
-                    fetch(this._source.url, {redirect: "follow"}).then(response => {
+                    fetch(this._source.url, { redirect: "follow" }).then(response => {
                         const webStream = stream.Readable.fromWeb(response.body as any).on("error", (err) => {
                             console.error(`(DOWNLOADER) Failed to download ${this._feedItem.title}`);
                             Downloader._logger(err.name, "Verbose");
                             Downloader._logger(err.message, "VeryVerbose");
                             Downloader._logger(err.name, "VeryVerbose");
                         });
-                        
+
                         webStream.pipe(fs.createWriteStream(path));
 
                         return webStream;
                     }).then((ws) => {
-                        ws.on("close", () => {
+                        ws.on("close", async () => {
                             this._cache.markCachedUnsafe(this._feedItem);
                             this._cache.save();
+                            await Metadata.applyMetadata(this).catch(() => {
+                                Downloader._logger(`Could not apply metadata to ${this.source.title}`);
+                            });
+                            
                             resolve({ item: this._source, path });
                         });
                         ws.on("error", (err) => {

@@ -6,7 +6,7 @@ podcast-playlist currently supports fetching feeds, downloading episodes, buildi
 
 ## Install
 
-This assumes you have node/npm installed.
+This assumes you have node/npm and ffmpeg installed.
 
 1. Clone the repo
 2. npm i
