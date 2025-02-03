@@ -331,7 +331,7 @@ function createPlaylist(title: string, configPath: string, local: boolean) {
         const playlist = configuration.generate(title, feeds, history, PLAYLIST_DIR);
         // Check we're not overwriting an existing playlist
         if (playlist.onDisk()) {
-            console.error(`A playlist called ${title} already exists (${playlist.playlistDirectoryPath()})`);
+            console.error(`A playlist called ${title} already exists (${playlist.rootDir()})`);
             return;
         }
 

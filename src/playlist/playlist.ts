@@ -30,32 +30,39 @@ export class Playlist {
     }
 
     private playlistM3UPath(): string {
-        return `${this.playlistDirectoryPath()}/${Downloader.toSafeFileName(this.title)}.playlist`;
+        return `${this.localPlaylistFilesDir()}/${Downloader.toSafeFileName(this.title)}.playlist`;
     }
     
-    private localFilesRootDir(): string {
-        return `${this.playlistDirectoryPath()}/Podcasts`;
+    private localAudioFilesDir(): string {
+        return `${this.rootDir()}/Podcasts`;
+    }
+    
+    private localPlaylistFilesDir(): string {
+        return `${this.rootDir()}/Playlists`;
     }
 
-    private localFileDirPath(feedItem: FeedItem, relative: boolean = false): string {
-        const root = relative ? `Podcasts` : this.localFilesRootDir();
+    private localAudioFileDirPath(feedItem: FeedItem, onDevice: boolean = false): string {
+        const root = onDevice ? `/Podcasts` : this.localAudioFilesDir();
         return `${root}/${Downloader.toSafeFileName(feedItem.author)}`
     }
 
-    public playlistDirectoryPath(): string {
+    public rootDir(): string {
         return `${this._workingDir}/${Downloader.toSafeFileName(this.title)}`;
     }
 
     private createDirectories(): void {
-        if(!fs.existsSync(this.localFilesRootDir())) {
-            fs.mkdirSync(this.localFilesRootDir(), { recursive: true });
+        if(!fs.existsSync(this.localAudioFilesDir())) {
+            fs.mkdirSync(this.localAudioFilesDir(), { recursive: true });
+        }
+        if(!fs.existsSync(this.localPlaylistFilesDir())) {
+            fs.mkdirSync(this.localPlaylistFilesDir(), { recursive: true });
         }
     }
 
     private saveM3U(playlist: M3uPlaylist) {
         this.createDirectories();
         let playlistString = playlist.getM3uString();
-        fs.writeFileSync(this.playlistM3UPath() + "detailed.playlist", playlistString);
+        fs.writeFileSync(this.playlistM3UPath() + ".detailed.playlist", playlistString);
 
         // TODO - remove when Tanagra correctly ignores comment lines
         playlistString = playlistString.split("\n").filter(l => !l.startsWith("#")).join("\n");
@@ -80,7 +87,7 @@ export class Playlist {
             let copies: Promise<void>[] = [];
             localFeedItems.forEach(item => {
                 try {
-                    const dest = this.localFileDirPath(item.item);
+                    const dest = this.localAudioFileDirPath(item.item);
                     if(!fs.existsSync(dest)) {
                         fs.mkdirSync(dest);
                     }
@@ -104,7 +111,7 @@ export class Playlist {
                     // Simply use the file name for the url, as it will sit next to the playlist
                     const parts = feedItem.path.split(".");
                     const ext = parts[parts.length - 1];
-                    const mediaItem = new M3uMedia(`${this.localFileDirPath(feedItem.item, true)}/${Downloader.toSafeFileName(feedItem.item.title)}.${ext}`);
+                    const mediaItem = new M3uMedia(`${this.localAudioFileDirPath(feedItem.item, true)}/${Downloader.toSafeFileName(feedItem.item.title)}.${ext}`);
                     mediaItem.name = feedItem.item.title;
                     mediaItem.artist = feedItem.item.author;
                     return mediaItem;
@@ -112,7 +119,7 @@ export class Playlist {
 
                 playlist.medias = media;
                 this.saveM3U(playlist);
-                return this.playlistDirectoryPath();
+                return this.rootDir();
             });
         });
     }
