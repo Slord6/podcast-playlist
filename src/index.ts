@@ -46,7 +46,7 @@ const argv = yargs(helpers.hideBin(process.argv))
                     .string("playlist")
                     .describe("playlist", "Path to the playlist to mark as listened")
             })
-            .command("feed", "Mark feed as played", (yargs) => {
+            .command("feed", "Mark an entire feed as played", (yargs) => {
                 yargs.string("name")
                     .describe("name", "Name of the feed to add to the history")
                     .demandOption("name");
@@ -54,6 +54,18 @@ const argv = yargs(helpers.hideBin(process.argv))
             .command("list", "List items in the history", (yargs) => {
                 yargs.string("name")
                     .describe("name", "Filter by name")
+            })
+            .command("matching", "Mark episodes matching a regex as played", (yargs) => {
+                yargs.string("feed")
+                    .describe("feed", "The name of the feed to match items in")
+                    .demandOption("feed")
+                yargs.string("regex")
+                    .describe("regex", "The regex to match against item titles")
+                    .demandOption("regex")
+                yargs.boolean("lowerCase")
+                    .describe("lowerCase", "Checks the regex against the lower-cased title")
+                yargs.boolean("dry")
+                    .describe("dry", "Output the matches rather than adding to history")
             })
             .conflicts("import", "list")
             .conflicts("list", "import")
@@ -108,12 +120,12 @@ const argv = yargs(helpers.hideBin(process.argv))
             })
             .command("import", "Import exsiting audio files into the cache", (yargs) => {
                 yargs.string("path")
-                .describe("path", "The path to the directory containing all the files")
-                .boolean("recursive")
-                .describe("recursive", "If set, recurses into subdirectories to find more files")
-                .boolean("ignoreArtist")
-                .describe("ignoreArtist", "If set, will ignore artist values in file metadata and try to match only on the title")
-                .demandOption("path")
+                    .describe("path", "The path to the directory containing all the files")
+                    .boolean("recursive")
+                    .describe("recursive", "If set, recurses into subdirectories to find more files")
+                    .boolean("ignoreArtist")
+                    .describe("ignoreArtist", "If set, will ignore artist values in file metadata and try to match only on the title")
+                    .demandOption("path")
             })
             .demand(1, 1);
     })
@@ -127,10 +139,10 @@ const argv = yargs(helpers.hideBin(process.argv))
     .version("0.1.0 (Alpha)")
     .parse() as any;
 
-if(argv.veryverbose) {
+if (argv.veryverbose) {
     Logger.SetVerbosity("VeryVerbose");
     Logger.Log("Very Verbose output enabled", "VeryVerbose");
-} else if(argv.verbose) {
+} else if (argv.verbose) {
     Logger.SetVerbosity("Verbose");
     Logger.Log("Verbose output enabled", "Verbose");
 } else {
@@ -162,6 +174,10 @@ switch (argv._[0]) {
             "feed": {
                 func: markFeedPlayed,
                 args: [argv.name]
+            },
+            "matching": {
+                func: markItemsByRegex,
+                args: [argv.feed, argv.regex, argv.lowerCase, argv.dry]
             }
         }, "Invalid history command");
         break;
@@ -359,6 +375,27 @@ function saveHistory(history: History) {
     fs.writeFileSync(HISTORY_PATH, JSON.stringify(history));
 }
 
+function addToHistory(feedName: string, items: FeedItem[]) {
+    const history = loadHistory();
+    const time = Date.now();
+    const newHistory = new History(items.map(item => {
+        const histItem = new HistoryItem(
+            {
+                episodeName: item.title,
+                episodeUrl: item.url.toString(),
+                podcastName: feedName,
+                playbackDate: time,
+                // TODO: do we even need the podcast Id?
+                podcast_id: null
+            }
+        );
+        return histItem;
+    }));
+    saveHistory(history.merge(newHistory));
+    Logger.Log(`Added ${items.length} items from ${feedName} to history`);
+
+}
+
 function markFeedPlayed(feedName: string) {
     loadFeeds().then(feeds => {
         const feed: undefined | Feed = feeds.filter(f => f.name === feedName)[0];
@@ -366,23 +403,29 @@ function markFeedPlayed(feedName: string) {
             console.error(`No feed called ${feedName} found.`);
             return;
         }
-        const history = loadHistory();
-        const time = Date.now();
-        const newHistory = new History(feed.items.map(item => {
-            const histItem = new HistoryItem(
-                {
-                    episodeName: item.title,
-                    episodeUrl: item.url.toString(),
-                    podcastName: feed.name,
-                    playbackDate: time,
-                    // TODO: do we even need the podcast Id?
-                    podcast_id: null
-                }
-            );
-            return histItem;
-        }));
-        saveHistory(history.merge(newHistory));
-        Logger.Log(`Added ${feed.items.length} items from ${feed.name} to history`);
+        addToHistory(feed.name, feed.items);
+    });
+}
+
+function markItemsByRegex(feedName: string, regex: string, lowerCase: boolean | undefined, dry: boolean | undefined) {
+    lowerCase = lowerCase === undefined ? false : lowerCase;
+    dry = dry === undefined ? false : dry;
+    loadFeeds().then(feeds => {
+        const feed: undefined | Feed = feeds.filter(f => f.name === feedName)[0];
+        if (!feed) {
+            console.error(`No feed called ${feedName} found.`);
+            return;
+        }
+
+        const matcher = new RegExp(regex);
+        const matches = feed.items.filter(item => matcher.test(lowerCase ? item.title.toLowerCase() : item.title));
+        if (dry) {
+            console.log(matches.map(i => i.title).join("\n"));
+            console.log(`Would have added ${matches.length} items to history`)
+        } else {
+            console.log(matches.map(i => i.title).join("\n"));
+            addToHistory(feed.name, matches);
+        }
     });
 }
 
