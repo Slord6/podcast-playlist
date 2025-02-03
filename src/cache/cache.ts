@@ -8,9 +8,10 @@ import { PlayheadFeed } from "../playlist/playheadFeed";
 import { CacheConfig } from "./cacheConfig";
 import * as fs from "fs";
 import * as nodepath from "path";
-import { IAudioMetadata, ICommonTagsResult, loadMusicMetadata } from 'music-metadata';
+import { ICommonTagsResult, loadMusicMetadata } from 'music-metadata';
 import { createReadStream } from 'node:fs';
 import path from "node:path";
+import { Metadata } from "./metadata";
 
 const CONFIG_FILE_NAME: string = `cache.json`;
 
@@ -43,13 +44,16 @@ export class Cache {
         if (!this._cacheConfig.cachedContains(feedItem)) {
             throw new Error("Tried to copy a feed item that isn't in the cache");
         }
-        // TODO: Having to create the downloader here seems a bit off?
         const downloader: Downloader = new Downloader(feedItem, this);
-        return downloader.getPath().then(cachePath => {
-            const newPath = `${newDir}/${nodepath.basename(cachePath)}`;
-            Cache._logger(`Copying ${cachePath} to ${newPath}`, "Verbose");
-            fs.copyFileSync(cachePath, newPath);
-        })
+        // We apply metadata at copy time, to ensure that imported files have
+        // tags applied if necessary
+        return Metadata.applyMetadata(downloader).then(() => {
+            downloader.getPath().then(cachePath => {
+                const newPath = `${newDir}/${nodepath.basename(cachePath)}`;
+                Cache._logger(`Copying ${cachePath} to ${newPath}`, "Verbose");
+                fs.copyFileSync(cachePath, newPath);
+            });
+        }) 
     }
 
     private determineArtist(common: ICommonTagsResult, feeds: Feed[]): Feed | null {
