@@ -3,6 +3,7 @@ import { EpisodeType, FeedItem } from './feedItem';
 import { PlayheadFeed } from './playlist/playheadFeed';
 import { Playlist } from './playlist/playlist';
 import { History } from './ingestion/history';
+import { Logger } from './logger';
 
 type PlaylistFeedConfig = {
     name: string,
@@ -20,6 +21,7 @@ type PlaylistConfig = {
 };
 
 export class PlaylistConfiguration {
+    private static _logger = Logger.GetNamedLogger("PLAYLISTCONF");
     private _configuration: PlaylistConfig;
     public get count(): number {
         return this._configuration.playlist.count;
@@ -65,10 +67,15 @@ export class PlaylistConfiguration {
         // Passes if none of the exclude filters match on it
         let notExcluded = true;
         if (feedConfig.exclude) {
+            PlaylistConfiguration._logger(`${feedItem.title}: Exclude configured (${feedConfig.exclude.join(", ")})`, "VeryVerbose");
             const filters = feedConfig.exclude.map(f => new RegExp(f));
-            notExcluded = filters.map(filter => {
-                return filter.test(feedItem.title);
-            }).filter(p => !p).length == 0;
+            const matches = filters.filter(filter => {
+                const res = filter.test(feedItem.title);
+                PlaylistConfiguration._logger(`\t ${filter.source} = ${res}`, "VeryVerbose");
+                return res;
+            });
+            PlaylistConfiguration._logger(`\t Matches: ${matches.length}}`, "VeryVerbose");
+            notExcluded = matches.length === 0;
         }
 
         // Passes if it isn't of one of the types to skip
@@ -76,6 +83,7 @@ export class PlaylistConfiguration {
         if (feedConfig.skipTypes) {
             typePass = !feedConfig.skipTypes.includes(feedItem.type);
         }
+        PlaylistConfiguration._logger(`${feedItem.title} (PASS: ${namePass && notExcluded && typePass}): name:${namePass}, notExclude:${notExcluded}, typePass:${typePass}`, "VeryVerbose")
         return namePass && notExcluded && typePass;
     }
 
@@ -101,9 +109,9 @@ export class PlaylistConfiguration {
     }
 
     public generate(title: string, feeds: Feed[], history: History, playlistWorkingDir: string): Playlist {
-        let feedsCopy = this.filterFeeds(feeds)
+        let feedsCopy: PlayheadFeed[] = this.filterFeeds(feeds)
             .map(feed => new PlayheadFeed(feed, history, (feedItem: FeedItem) => this.feedItemPassesFilters(feedItem, feed.name)))
-            .filter(f => !f.listened);
+            .filter(f => !f.finished);
         const list: FeedItem[] = [];
 
         // TODO: support weightings in the playlist config
@@ -111,10 +119,13 @@ export class PlaylistConfiguration {
         while (feedsCopy.length > 0 && list.length < this.count) {
             PlaylistConfiguration.shuffleInPlace(feedsCopy);
             const chosen = feedsCopy[0];
-            list.push(chosen.nextUnsafe);
-            chosen.skip();
-
-            feedsCopy = feedsCopy.filter(f => !f.listened);
+            list.push(chosen.current!);
+            
+            chosen.progress();
+            if(chosen.finished) {
+                PlaylistConfiguration._logger(`No available items left to add to playlist from ${chosen.feed.name}`);
+                feedsCopy = feedsCopy.filter(f => !f.finished);
+            }
         }
 
         return new Playlist(title, list, playlistWorkingDir);

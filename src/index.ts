@@ -33,7 +33,7 @@ const argv = yargs(helpers.hideBin(process.argv))
                 // TODO: support --rss <rss url>
                 yargs.string("path")
                     .describe("path", "Path to the ingest configuration file")
-                    .demandOption(["path"])
+                    .demandOption("path")
             })
             .command("list", "List the ingested feeds")
             .demandCommand(1, 1)
@@ -45,6 +45,14 @@ const argv = yargs(helpers.hideBin(process.argv))
                     .describe("podcastAddict", "Path to the Podcast Addict backup db")
                     .string("playlist")
                     .describe("playlist", "Path to the playlist to mark as listened")
+                    .conflicts("podcastAddict", "playlist")
+                    .conflicts("playlist", "podcastAddict")
+                    .check((argv) => {
+                        if (!argv.podcastAddict && !argv.playlist) {
+                            throw new Error("Must set either --podcastAddict or --playlist");
+                        }
+                        return true;
+                    });
             })
             .command("feed", "Mark an entire feed as played", (yargs) => {
                 yargs.string("name")
@@ -302,6 +310,7 @@ function skipCache(all: boolean, feedName: string, history: boolean) {
 }
 
 function createPlaylist(title: string, configPath: string, local: boolean) {
+    console.log(`Building playlist`);
     let configuration: PlaylistConfiguration;
     if (!fs.existsSync(configPath)) {
         console.error(`${configPath} does not exist`);
