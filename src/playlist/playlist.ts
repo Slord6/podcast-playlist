@@ -141,12 +141,19 @@ export class Playlist {
     }
 
     public static loadItems(m3uPath: string): { title: string, podcast: string }[] {
-        const m3uPlaylist = M3uParser.parse(fs.readFileSync(m3uPath).toString());
-        return m3uPlaylist.medias.map(media => {
+        const m3uPlaylist = new M3uParser().parse(fs.readFileSync(m3uPath).toString());
+        Playlist._logger(`Loaded ${m3uPlaylist.medias.length} items from the playlist`, "Verbose");
+        const valid = m3uPlaylist.medias.map(media => {
             return {
                 title: media.name,
                 podcast: media.artist
             }
         }).filter(x => x.podcast !== undefined && x.title !== undefined) as { title: string, podcast: string }[];
+        Playlist._logger(`Parsed ${valid.length} items successfully`, 'Verbose');
+        Playlist._logger(valid.map(v => `${v.podcast}: ${v.title}`).join("\n\t"), 'Verbose');
+        if(valid.length !== m3uPlaylist.medias.length) {
+            console.warn(`(PLAYLIST) ${m3uPlaylist.medias.length - valid.length} items could not be parsed`);
+        }
+        return valid;
     }
 }
