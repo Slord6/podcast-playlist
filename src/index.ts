@@ -29,6 +29,7 @@ const argv = yargs(helpers.hideBin(process.argv))
     // TODO: move under a "feed" command, merge with "list"
     .command("feed", "Manage podcast feeds", (yargs) => {
         yargs
+            .command("refresh", "Update the cached feeds")
             .command("ingest", "Add new, and update existing, podcast feeds", (yargs) => {
                 // TODO: support --rss <rss url>
                 yargs.string("path")
@@ -94,7 +95,6 @@ const argv = yargs(helpers.hideBin(process.argv))
     })
     .command("cache", "Cache management", (yargs) => {
         yargs
-            .command("refresh", "Update the cached feeds")
             .command("update", "Download any uncached feed items", (yargs) => {
                 yargs.boolean("latest")
                     .describe("latest", "If set, only get the most recent episode of each feed")
@@ -160,6 +160,10 @@ if (argv.veryverbose) {
 switch (argv._[0]) {
     case "feed":
         handleCommand(argv._[1], {
+            "refresh": {
+                func: refreshFeeds,
+                args: []
+            },
             "list": { func: list, args: [] },
             "ingest": { func: newIngest, args: [argv.path] }
         }, "Invalid feed command");
@@ -199,10 +203,6 @@ switch (argv._[0]) {
         break;
     case "cache":
         handleCommand(argv._[1], {
-            "refresh": {
-                func: refreshCache,
-                args: []
-            },
             "update": {
                 func: updateCache,
                 args: [argv.feed, argv.latest, argv.force]
@@ -238,9 +238,9 @@ function handleCommand(command: string, mapping: CommandMapping, errorText: stri
     handler.func.apply(null, handler.args);
 }
 
-function refreshCache() {
+function refreshFeeds() {
     const cache = new Cache(CACHE_DIR);
-    Logger.Log("Refreshing the cache...");
+    Logger.Log("Refreshing all feeds...");
     cache.refresh().then(() => {
         Logger.Log("Feed refresh complete");
     });
@@ -381,7 +381,7 @@ function importHistory(opmlPath: string, playlistPath: string) {
 }
 
 function saveHistory(history: History) {
-    fs.writeFileSync(HISTORY_PATH, JSON.stringify(history));
+    fs.writeFileSync(HISTORY_PATH, JSON.stringify(history, null, '\t'));
 }
 
 function addToHistory(feedName: string, items: FeedItem[]) {
