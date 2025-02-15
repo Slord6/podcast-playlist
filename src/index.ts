@@ -81,6 +81,16 @@ const argv = yargs(helpers.hideBin(process.argv))
                 yargs.boolean("dry")
                     .describe("dry", "Output the matches rather than adding to history")
             })
+            .command("before", "Mark episodes published before the given date as played", (yargs) => {
+                yargs.string("feed")
+                    .describe("feed", "The name of the feed to match items in")
+                    .demandOption("feed")
+                yargs.string("date")
+                    .describe("date", "The date to match before")
+                    .demandOption("date")
+                yargs.boolean("dry")
+                    .describe("dry", "Output the matches rather than adding to history")
+            })
             .conflicts("import", "list")
             .conflicts("list", "import")
             .demandCommand(1, 1);
@@ -195,6 +205,10 @@ switch (argv._[0]) {
             "matching": {
                 func: markItemsByRegex,
                 args: [argv.feed, argv.regex, argv.lowerCase, argv.dry]
+            },
+            "before": {
+                func: markItemsBeforeDate,
+                args: [argv.feed, argv.date, argv.dry]
             },
             "unplayed": {
                 func: unplayed,
@@ -394,7 +408,7 @@ function unplayed(feedName: string) {
     const cache = new Cache(CACHE_DIR);
     cache.loadFeeds().then((feeds) => {
         const feed = feeds.filter(feed => feed.name === feedName)[0];
-        if(feed === undefined) {
+        if (feed === undefined) {
             console.log(`No feed called ${feedName} found`);
             return;
         }
@@ -453,6 +467,43 @@ function markItemsByRegex(feedName: string, regex: string, lowerCase: boolean | 
         const matches = feed.items.filter(item => matcher.test(lowerCase ? item.title.toLowerCase() : item.title));
         if (dry) {
             console.log(matches.map(i => i.title).join("\n"));
+            console.log(`Would have added ${matches.length} items to history`)
+        } else {
+            console.log(matches.map(i => i.title).join("\n"));
+            addToHistory(feed.name, matches);
+        }
+    });
+}
+
+function markItemsBeforeDate(feedName: string, date: string, dry: boolean | undefined) {
+    dry = dry === undefined ? false : dry;
+    loadFeeds().then(feeds => {
+        const feed: undefined | Feed = feeds.filter(f => f.name === feedName)[0];
+        if (!feed) {
+            console.error(`No feed called ${feedName} found.`);
+            return;
+        }
+
+        const dateStamp = Date.parse(date);
+        if (isNaN(dateStamp)) {
+            console.error(`Could not understand '${date}' as a date`);
+            return;
+        }
+
+        const dateTime = new Date(dateStamp);
+        console.log(`Checking for items in ${feed.name} released before ${dateTime.toLocaleString()} (${dateTime.getDay})`);
+        const matches = feed.items.filter(item => {
+            const published = item.published;
+            if (published === null) {
+                console.warn(`Could not determine the publish date of '${item.title}' (${item.pubdate ? item.pubdate : 'no date set'}), it will be ignored`);
+                return false;
+            }
+            return published < dateTime;
+        });
+        if (dry) {
+            console.log(matches.map(i => {
+                return `(${i.pubdate}) ${i.title}`;
+            }).join("\n"));
             console.log(`Would have added ${matches.length} items to history`)
         } else {
             console.log(matches.map(i => i.title).join("\n"));
