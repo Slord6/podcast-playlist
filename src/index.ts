@@ -60,6 +60,11 @@ const argv = yargs(helpers.hideBin(process.argv))
                     .describe("name", "Name of the feed to add to the history")
                     .demandOption("name");
             })
+            .command("unplayed", "Return the unplayed items in a given feed", (yargs) => {
+                yargs.string("feed")
+                    .describe("feed", "Name of the feed to query")
+                    .demandOption("feed");
+            })
             .command("list", "List items in the history", (yargs) => {
                 yargs.string("name")
                     .describe("name", "Filter by name")
@@ -190,6 +195,10 @@ switch (argv._[0]) {
             "matching": {
                 func: markItemsByRegex,
                 args: [argv.feed, argv.regex, argv.lowerCase, argv.dry]
+            },
+            "unplayed": {
+                func: unplayed,
+                args: [argv.feed]
             }
         }, "Invalid history command");
         break;
@@ -378,6 +387,20 @@ function importHistory(opmlPath: string, playlistPath: string) {
     }
     const endCount = loadHistory().items.length;
     Logger.Log(`${endCount - startCount} items added to history (${endCount} total (may include duplicates))`);
+}
+
+function unplayed(feedName: string) {
+    const history = loadHistory();
+    const cache = new Cache(CACHE_DIR);
+    cache.loadFeeds().then((feeds) => {
+        const feed = feeds.filter(feed => feed.name === feedName)[0];
+        if(feed === undefined) {
+            console.log(`No feed called ${feedName} found`);
+            return;
+        }
+        const unlistened = feed.items.filter(i => !history.listenedToByFeedItem(i));
+        console.log(unlistened.reverse().map(i => i.title).join("\n"));
+    });
 }
 
 function saveHistory(history: History) {

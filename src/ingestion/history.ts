@@ -41,6 +41,7 @@ export class History {
     }
 
     public merge(other: History): History {
+        // TODO: handle duplicates
         return new History([...this.items, ...other.items]);
     }
 
