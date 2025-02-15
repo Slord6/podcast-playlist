@@ -42,9 +42,16 @@ export class PlaylistConfiguration {
 
     private filterFeeds(feeds: Feed[]): Feed[] {
         const includedNames = this._configuration.playlist.include.map(i => i.name);
-        return feeds.filter((feed) => {
+        const selected = feeds.filter((feed) => {
             return includedNames.includes(feed.name);
         });
+        PlaylistConfiguration._logger(`Configuration requested ${includedNames.length}, matched to ${selected.length} known feeds`, "Verbose");
+        if(includedNames.length !== selected.length) {
+            PlaylistConfiguration._logger(`Could not match ${includedNames.length - selected.length} configuration items to a feed:`, "Info");
+            const foundNames = selected.map(s => s.name);
+            PlaylistConfiguration._logger(`\r\n\t ${includedNames.filter(n => !foundNames.includes(n)).join(`\r\n\t`)}`);
+        }
+        return selected;
     }
 
     private getFeedConfig(feedName: string): PlaylistFeedConfig | null {
@@ -113,12 +120,20 @@ export class PlaylistConfiguration {
             .map(feed => new PlayheadFeed(feed, history, (feedItem: FeedItem) => this.feedItemPassesFilters(feedItem, feed.name)))
             .filter(f => !f.finished);
         const list: FeedItem[] = [];
+        PlaylistConfiguration._logger(`Generating playlist from ${feedsCopy.length} feeds`, 'VeryVerbose');
 
         // TODO: support weightings in the playlist config
 
+        let previous: PlayheadFeed | null = null;
         while (feedsCopy.length > 0 && list.length < this.count) {
-            PlaylistConfiguration.shuffleInPlace(feedsCopy);
-            const chosen = feedsCopy[0];
+            let chosen: PlayheadFeed;
+            let retry = 0;
+            do {
+                retry++;
+                PlaylistConfiguration.shuffleInPlace(feedsCopy);
+                chosen = feedsCopy[0];
+            } while(previous === chosen && feedsCopy.length > 1); // Don't have consecutive playlist items from the same feed
+            PlaylistConfiguration._logger(`Took ${retry} times to find next feed (from ${feedsCopy.length}) remaining`, 'VeryVerbose');
             list.push(chosen.current!);
             
             chosen.progress();
@@ -126,7 +141,9 @@ export class PlaylistConfiguration {
                 PlaylistConfiguration._logger(`No available items left to add to playlist from ${chosen.feed.name}`);
                 feedsCopy = feedsCopy.filter(f => !f.finished);
             }
+            previous = chosen;
         }
+        PlaylistConfiguration._logger(`Generated playlist:\n\t${list.map(l => `(${l.author}) ${l.title}`).join(`\r\n\t`)}`, 'Verbose');
 
         return new Playlist(title, list, playlistWorkingDir);
     }
