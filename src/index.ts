@@ -112,7 +112,7 @@ const argv = yargs(helpers.hideBin(process.argv))
     })
     .command("cache", "Cache management", (yargs) => {
         yargs
-            .command("update", "Download any uncached feed items", (yargs) => {
+            .command("fill", "Download any uncached feed items", (yargs) => {
                 yargs.boolean("latest")
                     .describe("latest", "If set, only get the most recent episode of each feed")
                     .string("feed")
@@ -228,8 +228,8 @@ switch (argv._[0]) {
         break;
     case "cache":
         handleCommand(argv._[1], {
-            "update": {
-                func: updateCache,
+            "fill": {
+                func: fillCache,
                 args: [argv.feed, argv.latest, argv.force]
             },
             "skip": {
@@ -271,7 +271,7 @@ async function refreshFeeds(): Promise<void> {
     });
 }
 
-function updateCache(feedName: string | undefined, latest: boolean, force: boolean) {
+function fillCache(feedName: string | undefined, latest: boolean, force: boolean) {
     const cache = new Cache(CACHE_DIR);
     if (feedName) {
         Logger.Log(`Updating cache for ${feedName}...`);
