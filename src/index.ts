@@ -143,7 +143,7 @@ const argv = yargs(helpers.hideBin(process.argv))
                         return true;
                     });
             })
-            .command("import", "Import exsiting audio files into the cache", (yargs) => {
+            .command("import", "Import existing audio files into the cache", (yargs) => {
                 yargs.string("path")
                     .describe("path", "The path to the directory containing all the files")
                     .boolean("recursive")
