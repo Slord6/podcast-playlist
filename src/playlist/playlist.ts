@@ -62,10 +62,6 @@ export class Playlist {
     private saveM3U(playlist: M3uPlaylist) {
         this.createDirectories();
         let playlistString = playlist.getM3uString();
-        fs.writeFileSync(this.playlistM3UPath() + ".detailed.playlist", playlistString);
-
-        // TODO - remove when Tanagra correctly ignores comment lines
-        playlistString = playlistString.split("\n").filter(l => !l.startsWith("#")).join("\n");
 
         fs.writeFileSync(this.playlistM3UPath(), playlistString);
     }
