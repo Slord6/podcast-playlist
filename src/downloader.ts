@@ -48,12 +48,13 @@ export class Downloader {
                 return mimeBasedExt;
             }
             
-            const sourceParts = this._source.toString().split(".");
+            const sourceParts = this._source.url.toString().split(".");
             const possExt = sourceParts[sourceParts.length - 1].toLowerCase();
             if (MimeTypes.isExtension(possExt)) {
                 this._extension = possExt;
                 return possExt;
             }
+            console.warn(`(DOWNLOADER) ${this._feedItem.title} (${this._feedItem.author}) using generic '.bin' type ('${possExt}' was invalid) fom source '${this.source.url.toString()}'`);
             
             this._extension = mimeBasedExt;
             return mimeBasedExt;
