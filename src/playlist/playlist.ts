@@ -1,6 +1,6 @@
 import { M3uPlaylist, M3uMedia, M3uParser } from 'm3u-parser-generator';
 import { FeedItem } from '../feedItem';
-import { Downloader } from '../downloader';
+import { Downloader, LocalDownload } from '../downloader';
 import * as fs from "fs";
 import { Cache } from '../cache/cache';
 import { Logger } from '../logger';
@@ -32,11 +32,11 @@ export class Playlist {
     private playlistM3UPath(): string {
         return `${this.localPlaylistFilesDir()}/${Downloader.toSafeFileName(this.title)}.playlist`;
     }
-    
+
     private localAudioFilesDir(): string {
         return `${this.rootDir()}/Podcasts`;
     }
-    
+
     private localPlaylistFilesDir(): string {
         return `${this.rootDir()}/Playlists`;
     }
@@ -51,10 +51,10 @@ export class Playlist {
     }
 
     private createDirectories(): void {
-        if(!fs.existsSync(this.localAudioFilesDir())) {
+        if (!fs.existsSync(this.localAudioFilesDir())) {
             fs.mkdirSync(this.localAudioFilesDir(), { recursive: true });
         }
-        if(!fs.existsSync(this.localPlaylistFilesDir())) {
+        if (!fs.existsSync(this.localPlaylistFilesDir())) {
             fs.mkdirSync(this.localPlaylistFilesDir(), { recursive: true });
         }
     }
@@ -70,21 +70,25 @@ export class Playlist {
         return fs.existsSync(this.playlistM3UPath());
     }
 
-    public async toM3ULocal(cache: Cache): Promise<string> {
+    public async toM3ULocal(cache: Cache): Promise<string | null> {
         const playlist = new M3uPlaylist();
         playlist.title = this.title;
 
-        const downloads: Promise<{item: FeedItem, path: string}>[] = this.items.map((feedItem: FeedItem) => {
-            return new Downloader(feedItem, cache).download();
-        });
+        const downloadResults: LocalDownload[] = [];
+        for(const [_, item] of this.items.entries()) {
+            Playlist._logger(`Creating downloader for ${item.title} (${item.author})`, "VeryVerbose");
+            downloadResults.push(await new Downloader(item, cache).download());
+            Playlist._logger(`Download completed ${item.title} (${item.author})`, "VeryVerbose");
+        }
 
-        return Promise.all(downloads).then(localFeedItems => {
+        return Promise.resolve(downloadResults).then((localFeedItems: LocalDownload[]) => {
+            Playlist._logger(`Downloads complete`, "Verbose");
             this.createDirectories();
             let copies: Promise<void>[] = [];
             localFeedItems.forEach(item => {
                 try {
                     const dest = this.localAudioFileDirPath(item.item);
-                    if(!fs.existsSync(dest)) {
+                    if (!fs.existsSync(dest)) {
                         fs.mkdirSync(dest);
                     }
                     copies.push(cache.copy(item.item, dest));
@@ -101,13 +105,14 @@ export class Playlist {
                     return "<Not saved>";
                 }
                 Playlist._logger(`All items retrieved from the cache. Building playlist...`);
-                
+
                 const media: M3uMedia[] = localFeedItems.map((feedItem) => {
                     Playlist._logger(`Creating media line for ${feedItem.item.title} (${feedItem.path})`, "VeryVerbose");
                     // Simply use the file name for the url, as it will sit next to the playlist
-                    const parts = feedItem.path.split(".");
-                    const ext = parts[parts.length - 1];
-                    const mediaItem = new M3uMedia(`${this.localAudioFileDirPath(feedItem.item, true)}/${Downloader.toSafeFileName(feedItem.item.title)}.${ext}`);
+                    const pathParts = feedItem.path.split("/");
+                    const fileName = pathParts[pathParts.length - 1];
+                    Playlist._logger(`Extracted file name for playlist entry; ${fileName}`, "VeryVerbose");
+                    const mediaItem = new M3uMedia(`${this.localAudioFileDirPath(feedItem.item, true)}/${fileName}`);
                     mediaItem.name = feedItem.item.title;
                     mediaItem.artist = feedItem.item.author;
                     return mediaItem;
@@ -117,6 +122,9 @@ export class Playlist {
                 this.saveM3U(playlist);
                 return this.rootDir();
             });
+        }).catch((reason) => {
+            Playlist._logger(`Playlist failed creation: ${reason}`);
+            return null;
         });
     }
 
@@ -147,7 +155,7 @@ export class Playlist {
         }).filter(x => x.podcast !== undefined && x.title !== undefined) as { title: string, podcast: string }[];
         Playlist._logger(`Parsed ${valid.length} items successfully`, 'Verbose');
         Playlist._logger(valid.map(v => `${v.podcast}: ${v.title}`).join("\n\t"), 'Verbose');
-        if(valid.length !== m3uPlaylist.medias.length) {
+        if (valid.length !== m3uPlaylist.medias.length) {
             console.warn(`(PLAYLIST) ${m3uPlaylist.medias.length - valid.length} items could not be parsed`);
         }
         return valid;

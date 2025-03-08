@@ -337,6 +337,7 @@ function skipCache(all: boolean, feedName: string, history: boolean) {
 function createPlaylist(title: string, configPath: string, local: boolean, refresh: boolean) {
     let prom: Promise<void> = new Promise<void>((r, _) => r());
     if (refresh) {
+        // TODO: Only refresh feeds in the playlist
         prom = refreshFeeds();
     }
     prom.then(() => {
