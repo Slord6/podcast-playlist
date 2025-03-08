@@ -335,26 +335,28 @@ function skipCache(all: boolean, feedName: string, history: boolean) {
 }
 
 function createPlaylist(title: string, configPath: string, local: boolean, refresh: boolean) {
-    let prom: Promise<void> = new Promise<void>((r, _) => r());
-    if (refresh) {
-        // TODO: Only refresh feeds in the playlist
-        prom = refreshFeeds();
-    }
-    prom.then(() => {
-        console.log(`Building playlist`);
-        let configuration: PlaylistConfiguration;
-        if (!fs.existsSync(configPath)) {
-            console.error(`${configPath} does not exist`);
+    console.log(`Building playlist`);
+    let configuration: PlaylistConfiguration;
+    if (!fs.existsSync(configPath)) {
+        console.error(`${configPath} does not exist`);
+        return;
+    } else {
+        try {
+            configuration = PlaylistConfiguration.fromJSON(fs.readFileSync(configPath).toString());
+        } catch (err) {
+            console.error(`Could not load playlist configuration from ${configPath}: ${err}`);
             return;
-        } else {
-            try {
-                configuration = PlaylistConfiguration.fromJSON(fs.readFileSync(configPath).toString());
-            } catch (err) {
-                console.error(`Could not load playlist configuration from ${configPath}: ${err}`);
-                return;
-            }
         }
-        loadFeeds().then(feeds => {
+    }
+    loadFeeds().then(feeds => {
+        const cache = new Cache(CACHE_DIR);
+        let prom: Promise<void> = new Promise<void>((r, _) => r());
+        if (refresh) {
+            prom = cache.refresh(configuration.filterFeeds(feeds)).then(() => {
+                Logger.Log("Feed refresh complete");
+            });
+        }
+        prom.then(() => {
             let history = loadHistory();
             if (history === null) {
                 history = new History([]);
@@ -365,9 +367,8 @@ function createPlaylist(title: string, configPath: string, local: boolean, refre
                 console.error(`A playlist called ${title} already exists (${playlist.rootDir()})`);
                 return;
             }
-
+    
             if (local) {
-                const cache = new Cache(CACHE_DIR);
                 playlist.toM3ULocal(cache).then(dirPath => {
                     Logger.Log(`Playlist (local) created at ${dirPath}`);
                 });
@@ -375,7 +376,7 @@ function createPlaylist(title: string, configPath: string, local: boolean, refre
                 let playListPath: string = playlist.toM3U();
                 Logger.Log(`Playlist (streaming) file created at ${playListPath}`);
             }
-        });
+        })
     });
 }
 

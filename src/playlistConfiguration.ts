@@ -40,7 +40,7 @@ export class PlaylistConfiguration {
         this._configuration = config;
     }
 
-    private filterFeeds(feeds: Feed[]): Feed[] {
+    public filterFeeds(feeds: Feed[]): Feed[] {
         const includedNames = this._configuration.playlist.include.map(i => i.name);
         const selected = feeds.filter((feed) => {
             return includedNames.includes(feed.name);
