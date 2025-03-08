@@ -4,7 +4,10 @@ import * as stream from "stream";
 import { MimeTypes } from "./mimeTypes";
 import { Cache } from "./cache/cache";
 import { Logger } from "./logger";
-import {Metadata} from "./cache/metadata"
+import { Metadata } from "./cache/metadata"
+const { finished } = require('node:stream/promises');
+
+export type LocalDownload = { item: FeedItem, path: string };
 
 export class Downloader {
     private static _logger = Logger.GetNamedLogger("DOWNLOADER");
@@ -47,19 +50,21 @@ export class Downloader {
                 this._extension = mimeBasedExt;
                 return mimeBasedExt;
             }
-            
+
             const sourceParts = this._source.url.toString().split(".");
             const possExt = sourceParts[sourceParts.length - 1].toLowerCase();
+            Downloader._logger(`Fallback extension: (${sourceParts}), ${possExt}`, "VeryVerbose");
             if (MimeTypes.isExtension(possExt)) {
                 this._extension = possExt;
                 return possExt;
             }
             console.warn(`(DOWNLOADER) ${this._feedItem.title} (${this._feedItem.author}) using generic '.bin' type ('${possExt}' was invalid) fom source '${this.source.url.toString()}'`);
-            
+
             this._extension = mimeBasedExt;
             return mimeBasedExt;
         }).catch((err) => {
             Downloader._logger(`Could not resolve extension for ${this._feedItem.title}. File will use a '.unknown' extension`);
+            Downloader._logger(`Extension promise failure: (${err}) - ${this.source.url}`, "VeryVerbose");
             return `.unknown`;
         });
     }
@@ -71,6 +76,10 @@ export class Downloader {
         return this.getPath().then(path => fs.existsSync(path));
     }
 
+    /**
+     * Get the local path for the FeedItem file
+     * @returns The path that the FeedItem this Downloader is handling is/would be downloaded to
+     */
     public getPath(): Promise<string> {
         const extensionPromise = this.getExtension();
         return extensionPromise.then(extension => {
@@ -79,48 +88,47 @@ export class Downloader {
         });
     }
 
-    public async download(): Promise<{ item: FeedItem, path: string }> {
-        return new Promise((resolve) => {
-            this.getPath().then((path) => {
-                if (this._cache.cached(this._feedItem)) {
-                    Downloader._logger(`File already cached, skipping download (${this._feedItem.title})`);
-                    resolve({ item: this._source, path });
-                } else {
-                    Downloader._logger(`Downloading ${this._feedItem.title}...`);
-                    Downloader._logger(`${this._source} ---> ${path}`, "Verbose");
-                    fetch(this._source.url, { redirect: "follow" }).then(response => {
-                        const webStream = stream.Readable.fromWeb(response.body as any).on("error", (err) => {
-                            console.error(`(DOWNLOADER) Failed to download ${this._feedItem.title}`);
-                            Downloader._logger(err.name, "Verbose");
-                            Downloader._logger(err.message, "VeryVerbose");
-                            Downloader._logger(err.name, "VeryVerbose");
-                        });
-
-                        webStream.pipe(fs.createWriteStream(path));
-
-                        return webStream;
-                    }).then((ws) => {
-                        ws.on("close", async () => {
-                            this._cache.markCachedUnsafe(this._feedItem);
-                            this._cache.save();
-                            await Metadata.applyMetadata(this).catch(() => {
-                                Downloader._logger(`Could not apply metadata to ${this.source.title}`);
-                            });
-                            
-                            resolve({ item: this._source, path });
-                        });
-                        ws.on("error", (err) => {
-                            console.error(`(DOWNLOADER) Failed to download ${this._feedItem.title}`);
-                            Downloader._logger(err.name, "Verbose");
-                            Downloader._logger(err.message, "VeryVerbose");
-                            Downloader._logger(err.stack ?? "<no trace>", "VeryVerbose");
-                        });
-                    }).catch((err) => {
-                        console.error(`(DOWNLOADER) Failed to download ${this._feedItem.title}`);
-                        Downloader._logger(err, "VeryVerbose");
+    public async download(): Promise<LocalDownload> {
+        return this.getPath().then((path) => {
+            Downloader._logger(`Path resolved: (${path})`, "VeryVerbose");
+            if (this._cache.cached(this._feedItem)) {
+                Downloader._logger(`File already cached, skipping download (${this._feedItem.title})`);
+                return { item: this.source, path } as LocalDownload;
+            } else {
+                Downloader._logger(`Downloading ${this.source.title} (${this.source.author})...`);
+                Downloader._logger(`${this._source} ---> ${path}`, "Verbose");
+                
+                return fetch(this._source.url, { redirect: "follow" }).then(response => {
+                    const webStream = stream.Readable.fromWeb(response.body as any).on("error", (err) => {
+                        console.error(`(DOWNLOADER) Failed to download ${this.source.title}`);
+                        Downloader._logger(err.name, "Info");
+                        Downloader._logger(err.message, "Verbose");
                     });
-                }
-            });
+                    
+                    const piped = webStream.pipe(fs.createWriteStream(path));
+                    Downloader._logger(`Pipe connected: ${this._source} ---> ${path}`, "VeryVerbose");
+
+                    return Promise.all([finished(webStream), finished(piped)]).then(async () => {
+                        Downloader._logger(`Download complete (${this.source.title})`);
+
+                        this._cache.markCachedUnsafe(this._feedItem);
+                        this._cache.save();
+                        await Metadata.applyMetadata(this).catch(() => {
+                            Downloader._logger(`Could not apply metadata to ${this.source.title}`);
+                        });
+
+                        return { item: this.source, path }
+                    });
+                })
+                    .catch((err) => {
+                        const msg = `Failed to download ${this.source.title} (${this.source.author})`;
+                        console.error(`(DOWNLOADER) ${msg}`);
+                        Downloader._logger(err.name, "Verbose");
+                        Downloader._logger(err.message, "VeryVerbose");
+                        Downloader._logger(err.stack ?? "<no trace>", "VeryVerbose");
+                        throw err;
+                    });
+            }
         });
     }
 }

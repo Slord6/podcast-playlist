@@ -238,9 +238,13 @@ export class Cache {
     /*
     Update the feeds
     */
-    public refresh(): Promise<any> {
+    public refresh(refreshFeeds?: Feed[]): Promise<any> {
         // load all 
         return this.loadFeeds().then(feeds => {
+            if(refreshFeeds) {
+                const names = refreshFeeds.map(f => f.name);
+                feeds = feeds.filter(feed => names.includes(feed.name));
+            }
             let imports: Promise<any>[] = [];
             Cache._logger(`Fetching ${feeds.length} feeds...`);
             let counter = 0;
