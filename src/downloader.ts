@@ -95,7 +95,7 @@ export class Downloader {
                 Downloader._logger(`File already cached, skipping download (${this._feedItem.title})`);
                 return { item: this.source, path } as LocalDownload;
             } else {
-                Downloader._logger(`Downloading ${this.source.title}...`);
+                Downloader._logger(`Downloading ${this.source.title} (${this.source.author})...`);
                 Downloader._logger(`${this._source} ---> ${path}`, "Verbose");
                 
                 return fetch(this._source.url, { redirect: "follow" }).then(response => {
