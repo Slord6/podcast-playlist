@@ -90,7 +90,7 @@ export class Downloader {
 
     public async download(): Promise<LocalDownload> {
         return this.getPath().then((path) => {
-            Downloader._logger(`Path resolved: (${path})`);
+            Downloader._logger(`Path resolved: (${path})`, "VeryVerbose");
             if (this._cache.cached(this._feedItem)) {
                 Downloader._logger(`File already cached, skipping download (${this._feedItem.title})`);
                 return { item: this.source, path } as LocalDownload;
