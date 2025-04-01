@@ -117,11 +117,24 @@ const argv = yargs(helpers.hideBin(process.argv))
                     .describe("latest", "If set, only get the most recent episode of each feed")
                     .string("feed")
                     .describe("feed", "Update only the named feed")
+                    .string("episodeRegex")
+                    .describe("episodeRegex", "Cache only episodes with titles matching the regex")
+                    .boolean("all")
+                    .describe("all", "Update all feeds")
                     .boolean("force")
                     .describe("force", "If updating a specific feed, set this flag to ignore the cache status. Requires --feed")
                     .check((argv) => {
                         if (argv.force && !argv.feed) {
                             throw new Error("--force can only be used when a feed is specified with --feed");
+                        }
+                        if(argv.feed && argv.all) {
+                            throw new Error("--all can only be used when a feed is not specified with --feed");
+                        }
+                        if(!argv.feed && !argv.all) {
+                            throw new Error("--all or --feed must be set");
+                        }
+                        if(argv.all && argv.episodeRegex) {
+                            throw new Error("--episodeRegex can only be used in concert with --feed");
                         }
                         return true;
                     });
@@ -230,7 +243,7 @@ switch (argv._[0]) {
         handleCommand(argv._[1], {
             "fill": {
                 func: fillCache,
-                args: [argv.feed, argv.latest, argv.force]
+                args: [argv.all === true, argv.feed, argv.latest, argv.force, argv.episodeRegex]
             },
             "skip": {
                 func: skipCache,
@@ -271,7 +284,7 @@ async function refreshFeeds(): Promise<void> {
     });
 }
 
-function fillCache(feedName: string | undefined, latest: boolean, force: boolean) {
+function fillCache(all: boolean, feedName: string | undefined, latest: boolean, force: boolean, episodeRegex: string | undefined) {
     const cache = new Cache(CACHE_DIR);
     if (feedName) {
         Logger.Log(`Updating cache for ${feedName}...`);
@@ -280,18 +293,23 @@ function fillCache(feedName: string | undefined, latest: boolean, force: boolean
             if (!feed) {
                 console.error(`No known feed called "${feed}"`);
             } else {
-                cache.cacheFeed(feed, latest, force).then(() => {
+                if(episodeRegex) {
+                    Logger.Log(`Only downloading episodes matching '${episodeRegex}'`);
+                }
+                cache.cacheFeed(feed, latest, force, episodeRegex).then(() => {
                     cache.save();
                     Logger.Log("Cache feed update complete");
                 });
             }
         });
-    } else {
+    } else if(all) {
         Logger.Log("Updating all feeds in the cache...");
         cache.update(latest).then(() => {
             cache.save();
             Logger.Log("Cache update complete");
         });
+    } else {
+        throw new Error(`Invalid values supplied to cache fill. All: ${all}, Feed: ${feedName}, Latest: ${latest}, Force: ${force}`);
     }
 }
 

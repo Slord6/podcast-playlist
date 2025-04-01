@@ -53,7 +53,7 @@ export class Cache {
                 Cache._logger(`Copying ${cachePath} to ${newPath}`, "Verbose");
                 fs.copyFileSync(cachePath, newPath);
             });
-        }) 
+        })
     }
 
     private determineArtist(common: ICommonTagsResult, feeds: Feed[]): Feed | null {
@@ -168,7 +168,7 @@ export class Cache {
         this._cacheConfig.addToCache(item);
     }
 
-    public cacheFeed(feed: Feed, latest: boolean, forced: boolean): Promise<void> {
+    public cacheFeed(feed: Feed, latest: boolean, forced: boolean, episodeRegex?: string): Promise<void> {
         Cache._logger(`Caching feed: ${feed.name}`);
         let downloadSequence: Promise<FeedItem | void> = Promise.resolve();
         if (latest) {
@@ -189,6 +189,13 @@ export class Cache {
                 if (!forced && this.cachedOrSkipped(item)) {
                     Cache._logger(`${item.title} is already cached or skipped, not downloading`);
                     return;
+                }
+                if (episodeRegex) {
+                    const reg = new RegExp(episodeRegex);
+                    if(!reg.test(item.title)) {
+                        Cache._logger(`${item.title} does not match regex filter, not downloading`, "Verbose");
+                        return;
+                    }
                 }
                 Cache._logger(`Caching ${item.title}...`, "Verbose");
                 const itemDownloader = new Downloader(item, this);
@@ -241,7 +248,7 @@ export class Cache {
     public refresh(refreshFeeds?: Feed[]): Promise<any> {
         // load all 
         return this.loadFeeds().then(feeds => {
-            if(refreshFeeds) {
+            if (refreshFeeds) {
                 const names = refreshFeeds.map(f => f.name);
                 feeds = feeds.filter(feed => names.includes(feed.name));
             }
