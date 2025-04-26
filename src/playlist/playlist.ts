@@ -75,7 +75,7 @@ export class Playlist {
         playlist.title = this.title;
 
         const downloadResults: LocalDownload[] = [];
-        for(const [_, item] of this.items.entries()) {
+        for (const [_, item] of this.items.entries()) {
             Playlist._logger(`Creating downloader for ${item.title} (${item.author})`, "VeryVerbose");
             downloadResults.push(await new Downloader(item, cache).download());
             Playlist._logger(`Download completed ${item.title} (${item.author})`, "VeryVerbose");
@@ -98,10 +98,10 @@ export class Playlist {
             });
             Playlist._logger(`Copying ${copies.length} items from the cache...`, "Verbose");
             return Promise.allSettled(copies).then((copyRes) => {
-                const failedCopies = copyRes.filter(res => res.status === "rejected");
+                const failedCopies = copyRes.filter(res => res.status !== 'fulfilled');
                 const copyFail = failedCopies.length > 0;
                 if (copyFail) {
-                    console.error("(PLAYLIST) One or more files failed to copy to the playlist output directory:\n", failedCopies.map(res => (res as any).reason).join("\n"));
+                    console.error("(PLAYLIST) One or more files failed to copy to the playlist output directory:\n", failedCopies, failedCopies.map(res => (res as any).reason).join("\n"));
                     return "<Not saved>";
                 }
                 Playlist._logger(`All items retrieved from the cache. Building playlist...`);

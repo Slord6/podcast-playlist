@@ -51,21 +51,11 @@ export class Downloader {
                 return mimeBasedExt;
             }
 
-            const sourceParts = this._source.url.toString().split(".");
-            const possExt = sourceParts[sourceParts.length - 1].toLowerCase();
-            Downloader._logger(`Fallback extension: (${sourceParts}), ${possExt}`, "VeryVerbose");
-            if (MimeTypes.isExtension(possExt)) {
-                this._extension = possExt;
-                return possExt;
-            }
-            console.warn(`(DOWNLOADER) ${this._feedItem.title} (${this._feedItem.author}) using generic '.bin' type ('${possExt}' was invalid) fom source '${this.source.url.toString()}'`);
-
-            this._extension = mimeBasedExt;
-            return mimeBasedExt;
+            throw new Error(`Invalid MIME type ${mimeBasedExt} for episode ${this._feedItem.title} (${this._feedItem.author})`);
         }).catch((err) => {
-            Downloader._logger(`Could not resolve extension for ${this._feedItem.title}. File will use a '.unknown' extension`);
+            Downloader._logger(`Could not resolve extension for ${this._feedItem.title}`);
             Downloader._logger(`Extension promise failure: (${err}) - ${this.source.url}`, "VeryVerbose");
-            return `.unknown`;
+            throw err;
         });
     }
 
@@ -97,14 +87,14 @@ export class Downloader {
             } else {
                 Downloader._logger(`Downloading ${this.source.title} (${this.source.author})...`);
                 Downloader._logger(`${this._source} ---> ${path}`, "Verbose");
-                
+
                 return fetch(this._source.url, { redirect: "follow" }).then(response => {
                     const webStream = stream.Readable.fromWeb(response.body as any).on("error", (err) => {
                         console.error(`(DOWNLOADER) Failed to download ${this.source.title}`);
                         Downloader._logger(err.name, "Info");
                         Downloader._logger(err.message, "Verbose");
                     });
-                    
+
                     const piped = webStream.pipe(fs.createWriteStream(path));
                     Downloader._logger(`Pipe connected: ${this._source} ---> ${path}`, "VeryVerbose");
 
