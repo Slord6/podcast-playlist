@@ -43,7 +43,8 @@ export class Downloader {
 
         return fetch(this._source.url, {
             method: "HEAD",
-            redirect: "follow"
+            redirect: "follow",
+            credentials: "include"
         }).then(response => {
             const mimeBasedExt = MimeTypes.getAudioExtension(response.headers.get("content-type"));
             if (mimeBasedExt !== "bin") {
@@ -88,28 +89,32 @@ export class Downloader {
                 Downloader._logger(`Downloading ${this.source.title} (${this.source.author})...`);
                 Downloader._logger(`${this._source} ---> ${path}`, "Verbose");
 
-                return fetch(this._source.url, { redirect: "follow" }).then(response => {
-                    const webStream = stream.Readable.fromWeb(response.body as any).on("error", (err) => {
-                        console.error(`(DOWNLOADER) Failed to download ${this.source.title}`);
-                        Downloader._logger(err.name, "Info");
-                        Downloader._logger(err.message, "Verbose");
-                    });
-
-                    const piped = webStream.pipe(fs.createWriteStream(path));
-                    Downloader._logger(`Pipe connected: ${this._source} ---> ${path}`, "VeryVerbose");
-
-                    return Promise.all([finished(webStream), finished(piped)]).then(async () => {
-                        Downloader._logger(`Download complete (${this.source.title})`);
-
-                        this._cache.markCachedUnsafe(this._feedItem);
-                        this._cache.save();
-                        await Metadata.applyMetadata(this).catch(() => {
-                            Downloader._logger(`Could not apply metadata to ${this.source.title}`);
+                return fetch(this._source.url,
+                    {
+                        redirect: "follow",
+                        credentials: "include"
+                    }).then(response => {
+                        const webStream = stream.Readable.fromWeb(response.body as any).on("error", (err) => {
+                            console.error(`(DOWNLOADER) Failed to download ${this.source.title}`);
+                            Downloader._logger(err.name, "Info");
+                            Downloader._logger(err.message, "Verbose");
                         });
 
-                        return { item: this.source, path }
-                    });
-                })
+                        const piped = webStream.pipe(fs.createWriteStream(path));
+                        Downloader._logger(`Pipe connected: ${this._source} ---> ${path}`, "VeryVerbose");
+
+                        return Promise.all([finished(webStream), finished(piped)]).then(async () => {
+                            Downloader._logger(`Download complete (${this.source.title})`);
+
+                            this._cache.markCachedUnsafe(this._feedItem);
+                            this._cache.save();
+                            await Metadata.applyMetadata(this).catch(() => {
+                                Downloader._logger(`Could not apply metadata to ${this.source.title}`);
+                            });
+
+                            return { item: this.source, path }
+                        });
+                    })
                     .catch((err) => {
                         const msg = `Failed to download ${this.source.title} (${this.source.author})`;
                         console.error(`(DOWNLOADER) ${msg}`);
