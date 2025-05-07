@@ -26,15 +26,17 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 
 const argv = yargs(helpers.hideBin(process.argv))
-    // TODO: move under a "feed" command, merge with "list"
     .command("feed", "Manage podcast feeds", (yargs) => {
         yargs
             .command("refresh", "Update the cached feeds")
             .command("ingest", "Add new, and update existing, podcast feeds", (yargs) => {
-                // TODO: support --rss <rss url>
                 yargs.string("path")
-                    .describe("path", "Path to the ingest configuration file")
-                    .demandOption("path")
+                    .describe("path", "Path to an ingest configuration file")
+                    .string("rss")
+                    .describe("rss", "Add a single rss feed")
+                    // One or other, not both
+                    .conflicts("path", "rss")
+                    .check(argv => argv.path !== undefined || argv.rss !== undefined)
             })
             .command("list", "List the ingested feeds")
             .demandCommand(1, 1)
@@ -127,13 +129,13 @@ const argv = yargs(helpers.hideBin(process.argv))
                         if (argv.force && !argv.feed) {
                             throw new Error("--force can only be used when a feed is specified with --feed");
                         }
-                        if(argv.feed && argv.all) {
+                        if (argv.feed && argv.all) {
                             throw new Error("--all can only be used when a feed is not specified with --feed");
                         }
-                        if(!argv.feed && !argv.all) {
+                        if (!argv.feed && !argv.all) {
                             throw new Error("--all or --feed must be set");
                         }
-                        if(argv.all && argv.episodeRegex) {
+                        if (argv.all && argv.episodeRegex) {
                             throw new Error("--episodeRegex can only be used in concert with --feed");
                         }
                         return true;
@@ -194,8 +196,17 @@ switch (argv._[0]) {
                 func: refreshFeeds,
                 args: []
             },
-            "list": { func: list, args: [] },
-            "ingest": { func: newIngest, args: [argv.path] }
+            "list": {
+                func: list,
+                args: []
+            },
+            "ingest": {
+                func: newIngest,
+                args: [
+                    argv.path,
+                    argv.rss
+                ]
+            }
         }, "Invalid feed command");
         break;
     case "history":
@@ -293,7 +304,7 @@ function fillCache(all: boolean, feedName: string | undefined, latest: boolean, 
             if (!feed) {
                 console.error(`No known feed called "${feed}"`);
             } else {
-                if(episodeRegex) {
+                if (episodeRegex) {
                     Logger.Log(`Only downloading episodes matching '${episodeRegex}'`);
                 }
                 cache.cacheFeed(feed, latest, force, episodeRegex).then(() => {
@@ -302,7 +313,7 @@ function fillCache(all: boolean, feedName: string | undefined, latest: boolean, 
                 });
             }
         });
-    } else if(all) {
+    } else if (all) {
         Logger.Log("Updating all feeds in the cache...");
         cache.update(latest).then(() => {
             cache.save();
@@ -385,7 +396,7 @@ function createPlaylist(title: string, configPath: string, local: boolean, refre
                 console.error(`A playlist called ${title} already exists (${playlist.rootDir()})`);
                 return;
             }
-    
+
             if (local) {
                 playlist.toM3ULocal(cache).then(dirPath => {
                     Logger.Log(`Playlist (local) created at ${dirPath}`);
@@ -575,12 +586,22 @@ function list() {
     });
 }
 
-function newIngest(path: string) {
+function newIngest(path: string | undefined, rss: string | undefined) {
     if (!fs.existsSync(CACHE_DIR)) {
         fs.mkdirSync(CACHE_DIR);
     }
-    const ingestConfig: IngestConfig = IngestConfig.load(path);
-    Logger.Log(`Loaded ${ingestConfig.opmlSources.length} OPML sources and ${ingestConfig.rssSources.length} rss sources`);
+
+    let ingestConfig: IngestConfig;
+    if (path !== undefined) {
+        ingestConfig = IngestConfig.load(path);
+        Logger.Log(`Loaded ${ingestConfig.opmlSources.length} OPML sources and ${ingestConfig.rssSources.length} rss sources`);
+    } else if (rss !== undefined) {
+        ingestConfig = new IngestConfig([], [rss]);
+        Logger.Log(`Loaded ${ingestConfig.rssSources.length} rss sources`);
+    } else {
+        throw new Error(`Neither import file or rss feed provided`);
+    }
+
     Logger.Log("Resolving to feeds...");
 
     let resolvedFeeds: Feed[] = [];
