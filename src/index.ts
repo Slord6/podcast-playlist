@@ -169,6 +169,19 @@ const argv = yargs(helpers.hideBin(process.argv))
             })
             .demand(1, 1);
     })
+    .command("sync", "Syncronise playlists on Tanagara, and update with a new playlist", (yargs) => {
+        yargs.string("title")
+            .describe("title", "The title of the new playlist")
+            .string("configPath")
+            .describe("configPath", "Path to the playlist configuration JSON")
+            .string("tangaraPath")
+            .describe("tangaraPath", "Path to root of Tangara")
+            .boolean("keepExisting")
+            .describe("keepExisting", "If set, do not delete existing playlists on Tanagara")
+            .boolean("dry")
+            .describe("dry", "If set, do not actually move any files, just print what would be done. Note that the playlist will still be created, but then removed.")
+            .demandOption(["title", "configPath", "tangaraPath"])
+    })
     .boolean("verbose")
     .alias("verbose", "v")
     .describe("verbose", "Moderate verbosity of output")
@@ -265,6 +278,14 @@ switch (argv._[0]) {
                 args: [argv.path, argv.recursive, argv.ignoreArtist]
             }
         }, "Invalid cache command");
+        break;
+    case "sync":
+        handleCommand(argv._[0], {
+            "sync": {
+                func: sync,
+                args: [argv.title, argv.configPath, argv.tangaraPath, argv.keepExisting, argv.dry]
+            }
+        }, "Invalid sync command");
         break;
     default:
         console.error(`${argv._} is not a valid command`);
@@ -363,7 +384,7 @@ function skipCache(all: boolean, feedName: string, history: boolean) {
     }
 }
 
-function createPlaylist(title: string, configPath: string, local: boolean, refresh: boolean) {
+function createPlaylist(title: string, configPath: string, local: boolean, refresh: boolean): Promise<Playlist | undefined> | undefined {
     console.log(`Building playlist`);
     let configuration: PlaylistConfiguration;
     if (!fs.existsSync(configPath)) {
@@ -377,7 +398,7 @@ function createPlaylist(title: string, configPath: string, local: boolean, refre
             return;
         }
     }
-    loadFeeds().then(feeds => {
+    return loadFeeds().then(feeds => {
         const cache = new Cache(CACHE_DIR);
         let prom: Promise<void> = new Promise<void>((r, _) => r());
         if (refresh) {
@@ -385,7 +406,7 @@ function createPlaylist(title: string, configPath: string, local: boolean, refre
                 Logger.Log("Feed refresh complete");
             });
         }
-        prom.then(() => {
+        return prom.then(() => {
             let history = loadHistory();
             if (history === null) {
                 history = new History([]);
@@ -398,24 +419,30 @@ function createPlaylist(title: string, configPath: string, local: boolean, refre
             }
 
             if (local) {
-                playlist.toM3ULocal(cache).then(dirPath => {
+                return playlist.toM3ULocal(cache).then(dirPath => {
+                    if (dirPath === null) {
+                        Logger.Log(`Playlist (local) failed to create`);
+                        return undefined;
+                    }
                     Logger.Log(`Playlist (local) created at ${dirPath}`);
+                    return playlist;
                 });
             } else {
                 let playListPath: string = playlist.toM3U();
                 Logger.Log(`Playlist (streaming) file created at ${playListPath}`);
+                return playlist;
             }
-        })
+        });
     });
 }
 
-function importHistory(opmlPath: string, playlistPath: string) {
+function importHistory(opmlPath: string | undefined | null, playlistPath: string | undefined | null) {
     let history: History = loadHistory();
     const startCount = history.items.length;
     if (opmlPath) {
         Logger.Log(`Importing OPML history from ${opmlPath}`);
         new PodcastAddictHistoryImporter(opmlPath).extract().then((newHistory: History) => {
-            Logger.Log("History loaded.");
+            Logger.Log("History loaded");
             history = history.merge(newHistory);
             saveHistory(history);
         }).catch((err) => {
@@ -639,5 +666,80 @@ function newIngest(path: string | undefined, rss: string | undefined) {
         resolvedFeeds.forEach(feed => {
             cache.registerFeed(feed);
         });
+    });
+}
+
+function sync(title: string, configPath: string, tangaraPath: string, keepExisting: boolean, dry: boolean) {
+    if (!fs.existsSync(tangaraPath)) {
+        throw new Error(`Tangara path ${tangaraPath} does not exist`);
+    }
+
+    if (dry) {
+        Logger.Log(`Dry run enabled, no files will be moved or deleted`);
+    }
+
+    Logger.Log(`Creating the new playlist`);
+    const playlistPromise = createPlaylist(title, configPath, !dry, !dry);
+
+    if (playlistPromise === undefined) {
+        return;
+    }
+    playlistPromise.then(playlist => {
+        if (playlist === undefined) {
+            console.error("Playlist creation failed, sync cancelled");
+            return;
+        }
+        if (dry) {
+            fs.rmSync(playlist.rootDir(), { recursive: true });
+            Logger.Log(`Dry run: removed the created playlist at ${playlist.rootDir()}`, "Verbose");
+        }
+
+        Logger.Log(`Importing history from Tangara...`);
+
+        const tangaraPlaylistsPath = `${tangaraPath}/Playlists`;
+        if (!fs.existsSync(tangaraPlaylistsPath)) {
+            console.error(`Tangara playlists path ${tangaraPlaylistsPath} does not exist`);
+            return;
+        }
+        const tangaraPlaylists: string[] = fs.readdirSync(tangaraPlaylistsPath)
+            .filter(file => file.endsWith(".playlist"))
+            .map(file => `${tangaraPlaylistsPath}/${file}`);
+        Logger.Log(`Found ${tangaraPlaylists.length} playlists on Tangara`, "Verbose");
+
+        Logger.Log(tangaraPlaylists.map(p => `\t${p}`).join("\n"), "VeryVerbose");
+
+        tangaraPlaylists.forEach((tangaraPlaylistPath) => {
+            if (!dry) {
+                importHistory(undefined, tangaraPlaylistPath);
+            } else {
+                Logger.Log(`Dry run: would import history from ${tangaraPlaylistPath}`, "Verbose");
+            }
+        });
+
+        if (!keepExisting) {
+            Logger.Log(`Deleting existing playlists on Tangara...`);
+            tangaraPlaylists.forEach((tangaraPlaylistPath) => {
+                if (!dry) {
+                    fs.unlinkSync(tangaraPlaylistPath);
+                } else {
+                    Logger.Log(`Dry run: would delete ${tangaraPlaylistPath}`, "Verbose");
+                }
+                Logger.Log(`Deleted ${tangaraPlaylistPath}`, "Verbose");
+            });
+        } else {
+            Logger.Log(`Leaving existing playlists in-place`);
+        }
+
+        Logger.Log(`Copying the new playlist to Tangara...`);
+        if (!dry) {
+            fs.cpSync(playlist.rootDir(), tangaraPath, {
+                recursive: true,
+                errorOnExist: false
+            });
+        } else {
+            Logger.Log(`Dry run: would copy ${playlist.rootDir()} to ${tangaraPath}`, "Verbose");
+        }
+
+        Logger.Log(`Sync complete`);
     });
 }
