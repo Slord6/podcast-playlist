@@ -29,7 +29,7 @@ export class Playlist {
         this._workingDir = workingDir;
     }
 
-    private playlistM3UPath(): string {
+    public playlistM3UPath(): string {
         return `${this.localPlaylistFilesDir()}/${Downloader.toSafeFileName(this.title)}.playlist`;
     }
 
@@ -102,7 +102,7 @@ export class Playlist {
                 const copyFail = failedCopies.length > 0;
                 if (copyFail) {
                     console.error("(PLAYLIST) One or more files failed to copy to the playlist output directory:\n", failedCopies, failedCopies.map(res => (res as any).reason).join("\n"));
-                    return "<Not saved>";
+                    return null;
                 }
                 Playlist._logger(`All items retrieved from the cache. Building playlist...`);
 
