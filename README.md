@@ -46,7 +46,7 @@ Configuration file:
 }
 ```
 
-Then 
+Then
 
 `feed ingest --path "./config.json"`
 
@@ -102,9 +102,9 @@ Removing `--ignoreArtist` will be quicker, but will mean that podcasts that have
 
 ### Playlist creation
 
-To create a playlist, create a configuration file like below:
+To create a playlist, create a configuration file like below. Feeds are included in the playlist by having an entry in the include list. By default all episodes are valid choices for the playlist, but items can be removed from selection by using `exclude` regexes or skipping certain types of episode (if supported by the feed) using `skipTypes`. Items matching any filter in the explicit `include` list are always included even if an exclude would otherwise exclude it.
 
-Configuration file:
+Example configuration file:
 
 ```JSON
 {
@@ -119,16 +119,26 @@ Configuration file:
             },
             {
                 "name": "Pitch, Please",
+                "include": [
+                    "featuring"
+                ],
                 "ordered": false
             },
             {
                 "name": "Regulation Podcast",
                 "ordered": false,
                 "skipTypes": ["bonus"]
+            },
+            {
+                "name": "Off Book: The Improvised Musical",
+                "exclude": [
+                    ".*"
+                ],
+                "include": [
+                    " on book:"
+                ],
+                "ordered": true
             }
-        ],
-        "episodeTitleFilters": [
-            "^BONUS.*"
         ],
         "count": 4
     }

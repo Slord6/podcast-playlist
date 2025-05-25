@@ -39,6 +39,16 @@ const argv = yargs(helpers.hideBin(process.argv))
                     .check(argv => argv.path !== undefined || argv.rss !== undefined)
             })
             .command("list", "List the ingested feeds")
+            .command("filter", "Run a regex filter against a feed", (yargs) => {
+                yargs.string("name")
+                    .describe("name", "Name of the feed to filter")
+                    .demandOption("name")
+                yargs.string("regex")
+                    .describe("regex", "The regex to filter the feed by")
+                    .demandOption("regex")
+                yargs.boolean("lowerCase")
+                    .describe("lowerCase", "If set, the title is lower-cased before testing")
+            })
             .demandCommand(1, 1)
     })
     .command("history", "Import listening history", (yargs) => {
@@ -218,6 +228,14 @@ switch (argv._[0]) {
                 args: [
                     argv.path,
                     argv.rss
+                ]
+            },
+            "filter": {
+                func: feedFilter,
+                args: [
+                    argv.name,
+                    argv.regex,
+                    argv.lowerCase
                 ]
             }
         }, "Invalid feed command");
@@ -610,6 +628,24 @@ function loadFeeds(): Promise<Feed[]> {
 function list() {
     loadFeeds().then(feeds => {
         feeds.forEach(f => Logger.Log(f.name));
+    });
+}
+
+function feedFilter(name: string, regex: string, lowerCase: boolean | undefined = false) {
+    loadFeeds().then(feeds => {
+        const feed: Feed | undefined = feeds.filter(f => f.name === name)[0];
+        if (!feed) {
+            console.error(`No feed called ${name} found.`);
+            return;
+        }
+        const matcher = new RegExp(regex);
+        const matches = feed.items.filter(item => matcher.test(lowerCase ? item.title.toLowerCase() : item.title));
+        if (matches.length === 0) {
+            Logger.Log(`No items in ${feed.name} matched the regex '${regex}'`);
+            return;
+        }
+        Logger.Log(`Items in ${feed.name} matching '${regex}':`);
+        Logger.Log(matches.map(i => i.title).join("\n"));
     });
 }
 
