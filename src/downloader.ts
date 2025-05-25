@@ -11,6 +11,7 @@ export type LocalDownload = { item: FeedItem, path: string };
 
 export class Downloader {
     private static _logger = Logger.GetNamedLogger("DOWNLOADER");
+    private static _userAgent: string = `PodcastPlaylist/1.0 (${process.platform} ${process.arch})`;
     private _source: FeedItem;
     public get source(): FeedItem {
         return this._source;
@@ -44,8 +45,13 @@ export class Downloader {
         return fetch(this._source.url, {
             method: "HEAD",
             redirect: "follow",
-            credentials: "include"
+            credentials: "include",
+            headers: {
+                "User-Agent": Downloader._userAgent
+            }
         }).then(response => {
+            Downloader._logger(`Source URL for file: ${response.url}`, "VeryVerbose");
+
             const mimeBasedExt = MimeTypes.getAudioExtension(response.headers.get("content-type"));
             if (mimeBasedExt !== "bin") {
                 this._extension = mimeBasedExt;
@@ -92,7 +98,10 @@ export class Downloader {
                 return fetch(this._source.url,
                     {
                         redirect: "follow",
-                        credentials: "include"
+                        credentials: "include",
+                        headers: {
+                            "User-Agent": Downloader._userAgent
+                        }
                     }).then(response => {
                         const webStream = stream.Readable.fromWeb(response.body as any).on("error", (err) => {
                             console.error(`(DOWNLOADER) Failed to download ${this.source.title}`);
@@ -102,6 +111,11 @@ export class Downloader {
 
                         const piped = webStream.pipe(fs.createWriteStream(path));
                         Downloader._logger(`Pipe connected: ${this._source} ---> ${path}`, "VeryVerbose");
+                        if (response.redirected) {
+                            Downloader._logger(`Source URL was redirected to: ${response.url}`, "VeryVerbose");
+                        } else {
+                            Downloader._logger(`Source URL for file: ${response.url}`, "VeryVerbose");
+                        }
 
                         return Promise.all([finished(webStream), finished(piped)]).then(async () => {
                             Downloader._logger(`Download complete (${this.source.title})`);
