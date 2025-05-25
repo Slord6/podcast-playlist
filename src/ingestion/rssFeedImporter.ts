@@ -17,15 +17,14 @@ export class RSSFeedImporter {
         RSSFeedImporter._logger(`Parsing ${this.rssUrl}...`, "Verbose");
         return BufferedRequests.fetch(this.rssUrl).then(resp => resp.text(), (reason) => console.error(`(RSS) Fetch-parse of ${this.rssUrl} failed: ${reason}`))
             .then(rssText => {
-                if(!rssText) return null;
+                if (!rssText) return null;
                 return parser.parseString(rssText).then(feed => {
                     const feedTitle = feed.title ? feed.title : "<Unknown Author>";
                     const items: FeedItem[] = feed.items.map((item) => {
                         const title = item.title ? item.title : "<Unknown title>";
                         const urlLoc = item.enclosure?.url;
                         const url = urlLoc ? new URL(urlLoc) : new URL("https://example.com"); // TODO better handling of missing URL
-                        // TODO extract episode type - blocked by https://github.com/rbren/rss-parser/issues/271
-                        return new FeedItem(title, url, item.pubDate ? item.pubDate : "", feedTitle, item.itunes?.episodeType || "full");
+                        return new FeedItem(title, url, item.pubDate ? item.pubDate : "", feedTitle, item.itunes?.episodeType || "full", item.enclosure?.type || null);
                     });
 
                     const imgUrl = feed.image?.url ? new URL(feed.image?.url) : new URL("https://example.com"); // TODO better handling of missing URL

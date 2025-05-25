@@ -26,7 +26,7 @@ export class Downloader {
     constructor(feedItem: FeedItem, cache: Cache) {
         this._source = feedItem;
         const podcastDirName: string = Downloader.toSafeFileName(feedItem.author);
-        this._feedItem = new FeedItem(feedItem.title, new URL(`file://${cache.cacheDirectory}/${podcastDirName}/${Downloader.toSafeFileName(feedItem.title)}`), feedItem.pubdate, feedItem.author, feedItem.type);
+        this._feedItem = new FeedItem(feedItem.title, new URL(`file://${cache.cacheDirectory}/${podcastDirName}/${Downloader.toSafeFileName(feedItem.title)}`), feedItem.pubdate, feedItem.author, feedItem.type, feedItem.mediaType);
         this._extension = null;
         this._cache = cache;
     }
@@ -41,6 +41,15 @@ export class Downloader {
      */
     public getExtension(): Promise<string> {
         if (this._extension !== null) return new Promise<string>((r) => r(this._extension!));
+
+        if (this._feedItem.mediaType !== null) {
+            const ext = MimeTypes.getAudioExtension(this._feedItem.mediaType);
+            if (ext !== "bin") {
+                this._extension = ext;
+                Downloader._logger(`Using media type from feed item: ${this._extension}`, "VeryVerbose");
+                return new Promise<string>((r) => r(this._extension!));
+            }
+        }
 
         return fetch(this._source.url, {
             method: "HEAD",
