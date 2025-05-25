@@ -9,13 +9,13 @@ type PlaylistFeedConfig = {
     name: string,
     ordered?: boolean,
     exclude?: string[],
+    include?: string[],
     skipTypes?: EpisodeType[],
 };
 
 type PlaylistConfig = {
     playlist: {
-        include: PlaylistFeedConfig[]
-        episodeTitleFilters: string[],
+        include: PlaylistFeedConfig[],
         count: number
     }
 };
@@ -32,7 +32,6 @@ export class PlaylistConfiguration {
             config = {
                 playlist: {
                     include: [],
-                    episodeTitleFilters: [],
                     count: 0,
                 }
             }
@@ -46,7 +45,7 @@ export class PlaylistConfiguration {
             return includedNames.includes(feed.name);
         });
         PlaylistConfiguration._logger(`Configuration requested ${includedNames.length}, matched to ${selected.length} known feeds`, "Verbose");
-        if(includedNames.length !== selected.length) {
+        if (includedNames.length !== selected.length) {
             PlaylistConfiguration._logger(`Could not match ${includedNames.length - selected.length} configuration items to a feed:`, "Info");
             const foundNames = selected.map(s => s.name);
             PlaylistConfiguration._logger(`\r\n\t ${includedNames.filter(n => !foundNames.includes(n)).join(`\r\n\t`)}`);
@@ -60,15 +59,25 @@ export class PlaylistConfiguration {
     }
 
     public feedItemPassesFilters(feedItem: FeedItem, feedName: string): boolean {
-        // Passes if none of the title filters match on it
-        const filters = this._configuration.playlist.episodeTitleFilters.map(f => new RegExp(f));
-        const namePass = filters.map(filter => {
-            return filter.test(feedItem.title);
-        }).filter(p => !p).length == 0;
-
         const feedConfig = this.getFeedConfig(feedName);
         if (feedConfig === null) {
             throw new Error(`Could not find feed ${feedName} when applying playlist filters`);
+        }
+
+        // Automatically passes if it is included in the include list
+        if (feedConfig.include) {
+            PlaylistConfiguration._logger(`${feedItem.title}: Include configured (${feedConfig.include.join(", ")})`, "VeryVerbose");
+            const filters = feedConfig.include.map(f => new RegExp(f));
+            const matches = filters.filter(filter => {
+                const res = filter.test(feedItem.title);
+                PlaylistConfiguration._logger(`\t ${filter.source} = ${res}`, "VeryVerbose");
+                return res;
+            });
+            PlaylistConfiguration._logger(`\t Matches: ${matches.length}}`, "VeryVerbose");
+            if (matches.length > 0) {
+                PlaylistConfiguration._logger(`${feedItem.title} explicitly included`, "VeryVerbose");
+                return true;
+            }
         }
 
         // Passes if none of the exclude filters match on it
@@ -90,8 +99,8 @@ export class PlaylistConfiguration {
         if (feedConfig.skipTypes) {
             typePass = !feedConfig.skipTypes.includes(feedItem.type);
         }
-        PlaylistConfiguration._logger(`${feedItem.title} (PASS: ${namePass && notExcluded && typePass}): name:${namePass}, notExclude:${notExcluded}, typePass:${typePass}`, "VeryVerbose")
-        return namePass && notExcluded && typePass;
+        PlaylistConfiguration._logger(`${feedItem.title} (PASS: ${notExcluded && typePass}): notExclude:${notExcluded}, typePass:${typePass}`, "VeryVerbose")
+        return notExcluded && typePass;
     }
 
     public static fromJSON(json: string): PlaylistConfiguration {
@@ -132,12 +141,12 @@ export class PlaylistConfiguration {
                 retry++;
                 PlaylistConfiguration.shuffleInPlace(feedsCopy);
                 chosen = feedsCopy[0];
-            } while(previous === chosen && feedsCopy.length > 1); // Don't have consecutive playlist items from the same feed
+            } while (previous === chosen && feedsCopy.length > 1); // Don't have consecutive playlist items from the same feed
             PlaylistConfiguration._logger(`Took ${retry} times to find next feed (from ${feedsCopy.length}) remaining`, 'VeryVerbose');
             list.push(chosen.current!);
-            
+
             chosen.progress();
-            if(chosen.finished) {
+            if (chosen.finished) {
                 PlaylistConfiguration._logger(`No available items left to add to playlist from ${chosen.feed.name}`);
                 feedsCopy = feedsCopy.filter(f => !f.finished);
             }
