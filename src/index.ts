@@ -714,6 +714,28 @@ function sync(title: string, configPath: string, tangaraPath: string, keepExisti
         Logger.Log(`Dry run enabled, no files will be moved or deleted`);
     }
 
+    Logger.Log(`Importing history from Tangara...`);
+
+    const tangaraPlaylistsPath = `${tangaraPath}/Playlists`;
+    if (!fs.existsSync(tangaraPlaylistsPath)) {
+        console.error(`Tangara playlists path ${tangaraPlaylistsPath} does not exist`);
+        return;
+    }
+    const tangaraPlaylists: string[] = fs.readdirSync(tangaraPlaylistsPath)
+        .filter(file => file.endsWith(".playlist"))
+        .map(file => `${tangaraPlaylistsPath}/${file}`);
+    Logger.Log(`Found ${tangaraPlaylists.length} playlists on Tangara`, "Verbose");
+
+    Logger.Log(tangaraPlaylists.map(p => `\t${p}`).join("\n"), "VeryVerbose");
+
+    tangaraPlaylists.forEach((tangaraPlaylistPath) => {
+        if (!dry) {
+            importHistory(undefined, tangaraPlaylistPath);
+        } else {
+            Logger.Log(`Dry run: would import history from ${tangaraPlaylistPath}`, "Verbose");
+        }
+    });
+
     Logger.Log(`Creating the new playlist`);
     const playlistPromise = createPlaylist(title, configPath, !dry, !dry);
 
@@ -729,28 +751,6 @@ function sync(title: string, configPath: string, tangaraPath: string, keepExisti
             fs.rmSync(playlist.rootDir(), { recursive: true });
             Logger.Log(`Dry run: removed the created playlist at ${playlist.rootDir()}`, "Verbose");
         }
-
-        Logger.Log(`Importing history from Tangara...`);
-
-        const tangaraPlaylistsPath = `${tangaraPath}/Playlists`;
-        if (!fs.existsSync(tangaraPlaylistsPath)) {
-            console.error(`Tangara playlists path ${tangaraPlaylistsPath} does not exist`);
-            return;
-        }
-        const tangaraPlaylists: string[] = fs.readdirSync(tangaraPlaylistsPath)
-            .filter(file => file.endsWith(".playlist"))
-            .map(file => `${tangaraPlaylistsPath}/${file}`);
-        Logger.Log(`Found ${tangaraPlaylists.length} playlists on Tangara`, "Verbose");
-
-        Logger.Log(tangaraPlaylists.map(p => `\t${p}`).join("\n"), "VeryVerbose");
-
-        tangaraPlaylists.forEach((tangaraPlaylistPath) => {
-            if (!dry) {
-                importHistory(undefined, tangaraPlaylistPath);
-            } else {
-                Logger.Log(`Dry run: would import history from ${tangaraPlaylistPath}`, "Verbose");
-            }
-        });
 
         if (!keepExisting) {
             Logger.Log(`Deleting existing playlists on Tangara...`);
