@@ -46,13 +46,18 @@ export class FeedItem {
     public set type(value: EpisodeType) {
         this._type = value;
     }
+    private _mediaType: string | null;;
+    public get mediaType(): string | null {
+        return this._mediaType;
+    }
 
-    constructor(title: string, url: URL, pubdate: string, author: string, type: EpisodeType) {
+    constructor(title: string, url: URL, pubdate: string, author: string, type: EpisodeType, mediaType: string | null) {
         this._title = title;
         this._url = url;
         this._pubdate = pubdate;
         this._author = author;
         this._type = type;
+        this._mediaType = mediaType || null;
     }
 
     public toString(): string {
@@ -61,12 +66,12 @@ export class FeedItem {
 
     public static fromJSON(json: string): FeedItem {
         const rawItem = JSON.parse(json);
-        return new FeedItem(rawItem._title, new URL(rawItem._url), rawItem._pubdate, rawItem._author, rawItem._type || "full");
+        return new FeedItem(rawItem._title, new URL(rawItem._url), rawItem._pubdate, rawItem._author, rawItem._type || "full", rawItem._mediaType || null);
     }
 
     public static fromHistoryItem(historyItem: HistoryItem, feeds: Feed[]): FeedItem | null {
         const feed: Feed | undefined = feeds.filter(feed => feed.name == historyItem.podcastName)[0];
-        if(!feed) return null;
+        if (!feed) return null;
         const feedItem = feed.items.filter(item => item.title == historyItem.episodeName)[0];
         return feedItem ? feedItem : null;
     }
