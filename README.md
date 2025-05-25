@@ -2,7 +2,7 @@
 
 This project exists to help me transition podcast listening from [PodcastAddict](https://podcastaddict.com/) to a [Tangara](https://www.crowdsupply.com/cool-tech-zone/tangara).
 
-podcast-playlist currently supports fetching feeds, downloading episodes, building playlists and tracking listen history. It's probably 'good enough' to use, but I've not fully used it in anger yet, so there's likely quirks and bugs yet to be discovered!
+podcast-playlist currently supports fetching feeds, downloading episodes, building playlists, tracking listen history and syncing with Tangara.
 
 ## Install
 
@@ -18,6 +18,17 @@ This assumes you have node/npm and ffmpeg installed.
 Invoke podcast-playlist with `node .\dist\index.js`. The documentation below just shows the subsequent commands (i.e. `feed list` means `node .\dist\index.js feed list`).
 
 To get stuck in you can use `--help` for any (sub)command to get help.
+
+### Quick Reference
+
+```bash
+# Import a new rss feed
+node dist/index.js feed ingest --rss "https://example.com/some-feed.rss"
+# Generate a playlist
+node dist/index.js playlist create --title "test" --configPath ./test.json
+# Sync a new playlist, keeping the existing playlists on the device
+node ./dist/index.js sync --title "NewPlaylist" --configPath "./default.json" --tangaraPath "/media/sam/TG_DATA" --keepExisting
+```
 
 ### Data
 
@@ -49,6 +60,10 @@ Configuration file:
 Then
 
 `feed ingest --path "./config.json"`
+
+Or, for individual RSS feeds:
+
+`feed ingest --rss <rssUrl>`
 
 #### History
 
@@ -104,6 +119,8 @@ Removing `--ignoreArtist` will be quicker, but will mean that podcasts that have
 
 To create a playlist, create a configuration file like below. Feeds are included in the playlist by having an entry in the include list. By default all episodes are valid choices for the playlist, but items can be removed from selection by using `exclude` regexes or skipping certain types of episode (if supported by the feed) using `skipTypes`. Items matching any filter in the explicit `include` list are always included even if an exclude would otherwise exclude it.
 
+You can test regexes against a feed using `feed filter --name "Podcast Name" --regex ".*example" --lowerCase`
+
 Example configuration file:
 
 ```JSON
@@ -150,3 +167,19 @@ Then invoke the creation:
 `playlist create --title playlist_name --configPath .\playlist_config.json --local`
 
 If you don't want the files downloaded, and just want the playlist to point to the URL of the episodes, drop the `--local`.
+
+### Syncronising
+
+Rather than a multi-step process of:
+
+1. Generate playlist
+2. Copy files to device
+3. Listen
+4. Mark the playlist as played
+5. Delete old playlist file
+
+You can instead run:
+
+`sync --title "NewPlaylist" --configPath "./APlaylistConfiguration.json" --tangaraPath "/media/sam/TG_DATA"`
+
+This will import any existing playlist on-device to the history, generate a new playlist with the provided name and configuration and then copy the playlist and media to the device. You can additionally set `--keepExisting` to leave the on-device playlists as-is.
