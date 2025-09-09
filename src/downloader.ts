@@ -1,11 +1,9 @@
 import { FeedItem } from "./feedItem";
 import * as fs from "fs";
-import * as stream from "stream";
 import { MimeTypes } from "./mimeTypes";
 import { Cache } from "./cache/cache";
 import { Logger } from "./logger";
 import { Metadata } from "./cache/metadata";
-const { finished } = require("node:stream/promises");
 
 export type LocalDownload = { item: FeedItem; path: string };
 
