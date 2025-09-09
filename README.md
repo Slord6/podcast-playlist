@@ -119,6 +119,8 @@ Removing `--ignoreArtist` will be quicker, but will mean that podcasts that have
 
 To create a playlist, create a configuration file like below. Feeds are included in the playlist by having an entry in the include list. By default all episodes are valid choices for the playlist, but items can be removed from selection by using `exclude` regexes or skipping certain types of episode (if supported by the feed) using `skipTypes`. Items matching any filter in the explicit `include` list are always included even if an exclude would otherwise exclude it.
 
+`shuffled` sets if the order of the podcasts should be randomised. When enabled it is not guarenteed that one of each podcasts will be added, just that there will be `count` episodes added from any feed (consecutive podcasts from the same feed are avoided where possible). When shuffling is disabled, a podcast from each playlist is added in order, looping back to the start if necessary, until the `count` is reached.
+
 You can test regexes against a feed using `feed filter --name "Podcast Name" --regex ".*example" --lowerCase`
 
 Example configuration file:
@@ -157,7 +159,8 @@ Example configuration file:
                 "ordered": true
             }
         ],
-        "count": 4
+        "count": 4,
+        "shuffled": true
     }
 }
 ```

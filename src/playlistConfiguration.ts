@@ -16,7 +16,8 @@ type PlaylistFeedConfig = {
 type PlaylistConfig = {
     playlist: {
         include: PlaylistFeedConfig[],
-        count: number
+        count: number,
+        shuffled: boolean
     }
 };
 
@@ -33,6 +34,7 @@ export class PlaylistConfiguration {
                 playlist: {
                     include: [],
                     count: 0,
+                    shuffled: true
                 }
             }
         }
@@ -134,14 +136,25 @@ export class PlaylistConfiguration {
         // TODO: support weightings in the playlist config
 
         let previous: PlayheadFeed | null = null;
+        const isShuffled = this._configuration.playlist.shuffled;
+        PlaylistConfiguration._logger(`Playlist is shuffled: ${isShuffled}`, 'VeryVerbose');
+        let choiceIndex = -1;
         while (feedsCopy.length > 0 && list.length < this.count) {
             let chosen: PlayheadFeed;
             let retry = 0;
             do {
                 retry++;
-                PlaylistConfiguration.shuffleInPlace(feedsCopy);
-                chosen = feedsCopy[0];
-            } while (previous === chosen && feedsCopy.length > 1); // Don't have consecutive playlist items from the same feed
+                if (isShuffled) {
+                    // Shuffled - mix the order in place and always pick the first
+                    PlaylistConfiguration.shuffleInPlace(feedsCopy);
+                    choiceIndex = 0;
+                } else {
+                    // Unshuffled, just iterate around the list of podcasts
+                    choiceIndex = (++choiceIndex) % feedsCopy.length;
+                }
+                chosen = feedsCopy[choiceIndex];
+
+            } while (isShuffled && previous === chosen && feedsCopy.length > 1); // Don't have consecutive playlist items from the same feed in shuffled playlists, if possible
             PlaylistConfiguration._logger(`Took ${retry} times to find next feed (from ${feedsCopy.length}) remaining`, 'VeryVerbose');
             list.push(chosen.current!);
 
