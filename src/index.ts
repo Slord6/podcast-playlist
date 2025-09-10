@@ -575,7 +575,7 @@ function markItemsBeforeDate(feedName: string, date: string, dry: boolean | unde
         }
 
         const dateTime = new Date(dateStamp);
-        console.log(`Checking for items in ${feed.name} released before ${dateTime.toLocaleString()} (${dateTime.getDay})`);
+        console.log(`Checking for items in '${feed.name}' released before ${dateTime.toISOString()} (${dateTime.toLocaleDateString('en-GB',{weekday: 'long'})})`);
         const matches = feed.items.filter(item => {
             const published = item.published;
             if (published === null) {
