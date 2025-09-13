@@ -22,6 +22,36 @@ export class CacheConfig {
         return feedCache.includes(feedItem.title);
     }
 
+    public getCacheCopy(): FeedMapping {
+        const copy: FeedMapping = {};
+        for (const key in this._cache) {
+            copy[key] = [...this._cache[key]];
+        }
+        return copy;
+    }
+
+    /**
+     * Remove an item from the cache. Leaves any files in-place.
+     * Note that calling this when a corresponding file still exists may cause issue if the episode is cached later.
+     * @returns true if an entry was removed, false otherwise
+     */
+    public removeEntry(feedItem: FeedItem): boolean {
+        if (!this.cachedContains(feedItem)) {
+            return false;
+        }
+
+        const initialCount = this._cache[feedItem.author].length;
+        const removed = this._cache[feedItem.author].filter(entry => entry !== feedItem.title);
+        const diff = initialCount - removed.length;
+        this._cache[feedItem.author] = removed;
+        return diff > 0;
+    }
+
+    public getFeedCache(author: string): string[] {
+        if (!this._cache[author]) return [];
+        return [...this._cache[author]];
+    }
+
     public skippedContains(feedItem: FeedItem): boolean {
         const skipCache: string[] | undefined = this._skipped[feedItem.author];
         if (!skipCache) return false;

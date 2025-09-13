@@ -12,6 +12,7 @@ import { ICommonTagsResult, loadMusicMetadata } from 'music-metadata';
 import { createReadStream } from 'node:fs';
 import path from "node:path";
 import { Metadata } from "./metadata";
+import { it } from "node:test";
 
 const CONFIG_FILE_NAME: string = `cache.json`;
 
@@ -192,7 +193,7 @@ export class Cache {
                 }
                 if (episodeRegex) {
                     const reg = new RegExp(episodeRegex);
-                    if(!reg.test(item.title)) {
+                    if (!reg.test(item.title)) {
                         Cache._logger(`${item.title} does not match regex filter, not downloading`, "Verbose");
                         return;
                     }
@@ -260,7 +261,7 @@ export class Cache {
                     counter++;
                     const percent = Math.round((counter / feeds.length) * 100);
                     if (newFeed !== null) {
-                        this.registerFeed(newFeed);
+                        this.writeFeed(newFeed);
                         Cache._logger(`(${percent}%) ${newFeed.name} updated`);
                     } else {
                         console.warn(`(CACHE) RSS source ${feed.url} failed`);
@@ -292,7 +293,7 @@ export class Cache {
      * Add the key to the cache & create any directories as needed, and save the feed json
      * @param feed 
      */
-    public registerFeed(feed: Feed) {
+    public writeFeed(feed: Feed) {
         this._cacheConfig.addKey(feed.name);
         const dirName = `${this._workingDir}/${Downloader.toSafeFileName(feed.name)}`;
         if (!fs.existsSync(dirName)) {
@@ -313,9 +314,160 @@ export class Cache {
         return this._cacheConfig.cachedOrSkippedContains(feedItem);
     }
 
+    public summarise(): Promise<string[]> {
+        return this.loadFeeds().then((feeds: Feed[]) => {
+            let totalSizeMb = 0;
+            return Promise.all(feeds.map(async (feed) => {
+                let sizeMb = 0;
+                for (const feedItem of feed.items) {
+                    if (!this.cached(feedItem)) continue;
+                    const downloader: Downloader = new Downloader(feedItem, this);
+                    await downloader.getPath().then((path) => {
+                        const stats = fs.statSync(path);
+                        sizeMb += (stats.size / (1000 * 1000));
+                    });
+                }
+                totalSizeMb += sizeMb;
+                const cacheCount = this._cacheConfig.getFeedCache(feed.name).length;
+                return `${feed.name}:\t${this.sizeToString(sizeMb)}\t ${cacheCount}/${feed.items.length} items`;
+            })).then((lines) => {
+                lines.push(`Total size: ${this.sizeToString(totalSizeMb)}`);
+                return lines;
+            });
+        });
+    }
+
+    private sizeToString(megaBytes: number): string {
+        const sizeType = [
+            { label: "KB", factor: 1 / 1000 },
+            { label: "MB", factor: 1 },
+            { label: "GB", factor: 1000 },
+            { label: "TB", factor: 1000 * 1000 }
+        ].find(size => {
+            return megaBytes < size.factor * 1000;
+        });
+        return sizeType === undefined ? `${(megaBytes / (1000 * 1000)).toFixed(2)} TB` : `${(megaBytes / sizeType.factor).toFixed(2)} ${sizeType.label}`;
+    }
+
+    private async removeCacheItemsWithoutFiles(): Promise<number> {
+        const feeds = await this.loadFeeds();
+        const items = this._cacheConfig.getCacheCopy();
+
+        let removedCount = 0;
+        for (const feedAuthor in items) {
+            if (!Object.prototype.hasOwnProperty.call(items, feedAuthor)) continue;
+            const cachedItems = items[feedAuthor];
+            Cache._logger(`Checking '${feedAuthor}' (${cachedItems.length} cached items)`, "Verbose");
+
+            const feed = feeds.find(f => f.name === feedAuthor);
+            if (!feed) {
+                Cache._logger(`No feed found for author ${feedAuthor}, skipping clean check`, "Verbose");
+                continue;
+            }
+
+            for (const key in cachedItems) {
+                if (!Object.prototype.hasOwnProperty.call(cachedItems, key)) continue;
+                const itemTitle = cachedItems[key];
+
+                const feedItem = feed.items.find(i => i.title === itemTitle);
+                if (!feedItem) {
+                    const titles = feed.items.map(i => i.title);
+                    const found = titles.find(t => {
+                        const normalisedT = t.trim().toLowerCase();
+                        const normalisedItemTitle = itemTitle.trim().toLowerCase();
+                        return normalisedT === normalisedItemTitle || normalisedT.includes(normalisedItemTitle) || normalisedItemTitle.includes(normalisedT);
+                    });
+                    const closestTitle = found ?? this.minLevenshtein(itemTitle, titles);
+                    Cache._logger(`No item in the '${feedAuthor}' feed called '${itemTitle}' was found. It might have been renamed to '${closestTitle}'? If so, the entry (and file) will need to be manually fixed.`, "Info");
+                    continue;
+                }
+
+                Cache._logger(`\t\t<<${feedItem.title}>>`, "VeryVerbose");
+                if (!this.cached(feedItem)) continue;
+                Cache._logger(`'${feedItem.title}' is cached, checking it...`, "VeryVerbose");
+
+                const downloader: Downloader = new Downloader(feedItem, this);
+                await downloader.getPath().then((path) => {
+                    if (!fs.existsSync(path)) {
+                        Cache._logger(`\n\n${feed.name}: '${feedItem.title}' (${path}) in cache, but does not exist on disk - removing from cache`);
+                        const removed = this._cacheConfig.removeEntry(feedItem);
+                        if (!removed) {
+                            Cache._logger(`Could not remove entry from cache!`);
+                        } else {
+                            removedCount++;
+                        }
+                    }
+                });
+            }
+        }
+        return removedCount;
+    }
+
+    /**
+     * Cleans the cache of items that are not present on disk
+     * @returns The number of items removed from the cache
+     */
+    public async clean(): Promise<number> {
+        // TODO: Remove duplicate cache entries too
+
+        return this.removeCacheItemsWithoutFiles().then(removedCount => {
+            this.save();
+            return removedCount;
+        });
+
+    }
+
+    private minLevenshtein(a: string, from: string[]): string {
+        let min = { str: "", dist: Number.MAX_SAFE_INTEGER };
+        from.forEach(f => {
+            const dist = this.levenshtein(a, f);
+            if (dist < min.dist) {
+                min = { str: f, dist: dist };
+            }
+        });
+        return min.str;
+    }
+
+    private levenshtein(a: string, b: string): number {
+        // From https://gist.githubusercontent.com/keesey/e09d0af833476385b9ee13b6d26a2b84/raw/6148bc83b2112f4eea99a84409fc909402e0c672/levenshtein.ts
+        const an = a ? a.length : 0;
+        const bn = b ? b.length : 0;
+        if (an === 0) {
+            return bn;
+        }
+        if (bn === 0) {
+            return an;
+        }
+        const matrix = new Array<number[]>(bn + 1);
+        for (let i = 0; i <= bn; ++i) {
+            let row = matrix[i] = new Array<number>(an + 1);
+            row[0] = i;
+        }
+        const firstRow = matrix[0];
+        for (let j = 1; j <= an; ++j) {
+            firstRow[j] = j;
+        }
+        for (let i = 1; i <= bn; ++i) {
+            for (let j = 1; j <= an; ++j) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                }
+                else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1], // substitution
+                        matrix[i][j - 1], // insertion
+                        matrix[i - 1][j] // deletion
+                    ) + 1;
+                }
+            }
+        }
+        return matrix[bn][an];
+    };
+
+
     public save() {
-        Cache._logger(`Saving at ${this._configPath}`, "Verbose");
+        Cache._logger(`Saving at ${this._configPath}`, "VeryVerbose");
         fs.writeFileSync(this._configPath, JSON.stringify(this._cacheConfig, null, '\t'));
-        Cache._logger("Saved.");
+        Cache._logger("Saved.", "Verbose");
     }
 }
