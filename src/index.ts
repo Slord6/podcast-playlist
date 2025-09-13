@@ -177,6 +177,8 @@ const argv = yargs(helpers.hideBin(process.argv))
                     .describe("ignoreArtist", "If set, will ignore artist values in file metadata and try to match only on the title")
                     .demandOption("path")
             })
+            .command("summary", "Output a summary of the cache on a per-feed basis")
+            .command("clean", "Check all feed items that are in the cache have a file on disk. Remove any entries that are missing a corresponding file.")
             .demand(1, 1);
     })
     .command("sync", "Syncronise playlists on Tanagara, and update with a new playlist", (yargs) => {
@@ -294,6 +296,14 @@ switch (argv._[0]) {
             "import": {
                 func: importCacheFiles,
                 args: [argv.path, argv.recursive, argv.ignoreArtist]
+            },
+            "summary": {
+                func: cacheSummary,
+                args: []
+            },
+            "clean": {
+                func: cleanCache,
+                args: []
             }
         }, "Invalid cache command");
         break;
@@ -315,6 +325,20 @@ function importCacheFiles(path: string, recursive: boolean | undefined, ignoreAr
     Logger.Log(`Importing existing files from ${path}`);
     Logger.Log(`Importing with settings: recursive: ${recursive}, ignoreArtist: ${ignoreArtist}`, "VeryVerbose");
     cache.import(path, recursive === true, ignoreArtist === true);
+}
+
+function cacheSummary() {
+    const cache = new Cache(CACHE_DIR);
+    cache.summarise().then(summaries => {
+       summaries.forEach(summary => Logger.Log(summary, "Info")); 
+    });
+}
+
+function cleanCache() {
+    const cache = new Cache(CACHE_DIR);
+    cache.clean().then(removedCount => {
+        Logger.Log(`Removed ${removedCount} items from the cache`);
+    });
 }
 
 function handleCommand(command: string, mapping: CommandMapping, errorText: string) {
@@ -700,7 +724,7 @@ function newIngest(path: string | undefined, rss: string | undefined) {
 
         const cache = new Cache(CACHE_DIR);
         resolvedFeeds.forEach(feed => {
-            cache.registerFeed(feed);
+            cache.writeFeed(feed);
         });
     });
 }
