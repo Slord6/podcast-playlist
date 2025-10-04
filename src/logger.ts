@@ -62,4 +62,16 @@ export class Logger {
         };
     }
 
+    /**
+     * 
+     * @param percent Completion amount 0->1
+     * @param width Number of elements that make up the progress bar
+     * @returns 
+     */
+    public static getProgressAscii(percent: number, width: number = 20): string {
+        const filled = Math.round(width * percent);
+        const remaining = width - filled;
+        return `[${">".repeat(filled) + ".".repeat(remaining)}]`;
+    }
+
 }

@@ -39,7 +39,7 @@ export class Metadata {
         return new Promise((resolve, reject) => {
             command.on('start', (cmdline) => Metadata._logger(cmdline, "VeryVerbose"))
                 .on('error', (err: Error, stdout: string | null, stderr: string | null) => {
-                    Metadata._logger("Setting metadata failed!");
+                    Metadata._logger(`Setting metadata failed for "${source.title}" (${source.author})!`);
                     Metadata._logger(err.message, "Verbose");
                     Metadata._logger(stdout ?? "<No stdout>", "VeryVerbose");
                     Metadata._logger(stderr ?? "<No stderr>", "VeryVerbose");

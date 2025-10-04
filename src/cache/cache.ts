@@ -13,6 +13,7 @@ import { createReadStream } from 'node:fs';
 import path from "node:path";
 import { Metadata } from "./metadata";
 import { it } from "node:test";
+import { prependListener } from "node:process";
 
 const CONFIG_FILE_NAME: string = `cache.json`;
 
@@ -186,7 +187,8 @@ export class Cache {
                 Cache._logger(`${latest.title} is already cached or skipped, not downloading`);
             }
         } else {
-            feed.items.forEach(item => {
+            // Reverse so we do oldest -> newest
+            feed.items.reverse().forEach(item => {
                 if (!forced && this.cachedOrSkipped(item)) {
                     Cache._logger(`${item.title} is already cached or skipped, not downloading`);
                     return;
@@ -255,21 +257,29 @@ export class Cache {
             }
             let imports: Promise<any>[] = [];
             Cache._logger(`Fetching ${feeds.length} feeds...`);
+            const logSink = Logger.ClaimContext();
             let counter = 0;
             feeds.forEach(feed => {
                 const rssImport = new RSSFeedImporter(new URL(feed.url)).toFeed().then(newFeed => {
                     counter++;
-                    const percent = Math.round((counter / feeds.length) * 100);
+                    const percent = counter / feeds.length;
                     if (newFeed !== null) {
                         this.writeFeed(newFeed);
-                        Cache._logger(`(${percent}%) ${newFeed.name} updated`);
+                        // clear line
+                        logSink(`\x1b[2K\r`);
+                        logSink(`${Logger.getProgressAscii(percent)} ${newFeed.name} updated`);
                     } else {
                         console.warn(`(CACHE) RSS source ${feed.url} failed`);
                     }
                 });
                 imports.push(rssImport);
             });
-            return Promise.allSettled(imports);
+            return Promise.allSettled(imports).then(x => {
+                logSink(`\x1b[2K\r`);
+                logSink(`${Logger.getProgressAscii(1)} All feeds updated`);
+                Logger.ReleaseContext();
+                return x;
+            });
         });
     }
 

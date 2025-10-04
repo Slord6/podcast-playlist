@@ -124,6 +124,7 @@ const argv = yargs(helpers.hideBin(process.argv))
     })
     .command("cache", "Cache management", (yargs) => {
         yargs
+            // TODO "cache next (--feed xyz)" - cache the next item in the feed(s)
             .command("fill", "Download any uncached feed items", (yargs) => {
                 yargs.boolean("latest")
                     .describe("latest", "If set, only get the most recent episode of each feed")

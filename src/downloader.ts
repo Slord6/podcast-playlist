@@ -122,18 +122,12 @@ export class Downloader {
         });
     }
 
-    private getDownloadAscii(percent: number, width: number): string {
-        const filled = Math.round(width * percent);
-        const remaining = width - filled;
-        return ">".repeat(filled) + ".".repeat(remaining);
-    }
-
     public async download(): Promise<LocalDownload> {
         return this.getPath().then((path) => {
             Downloader._logger(`Path resolved: (${path})`, "VeryVerbose");
             if (this._cache.cached(this._feedItem)) {
                 Downloader._logger(
-                    `File already cached, skipping download (${this._feedItem.title})`
+                    `Using cached: "${this._feedItem.title}" (${this._feedItem.author})`
                 );
                 return { item: this.source, path } as LocalDownload;
             } else {
@@ -183,19 +177,20 @@ export class Downloader {
                                     // clear line
                                     logSink(`\x1b[2K\r`);
                                     if(percent !== null) {
-                                        logSink(`\r${nameStr}: [${this.getDownloadAscii(percent, 10)}] ${(percent * 100).toFixed(2)}% (${receivedMbFmt} MB / ${totalSizeMb} MB) @ ${speed} MB/s`);
+                                        logSink(`\r(DOWNLOADER) ${nameStr}: ${Logger.getProgressAscii(percent)} ${(percent * 100).toFixed(2)}% (${receivedMbFmt} MB / ${totalSizeMb} MB) @ ${speed} MB/s`);
                                     } else {
-                                        logSink(`\r${nameStr}: ??% (${receivedMbFmt} MB // ?? KB) @ ${speed} MB/s`);
+                                        logSink(`\r(DOWNLOADER) ${nameStr}: ??% (${receivedMbFmt} MB // ?? KB) @ ${speed} MB/s`);
                                     }
                                 }
                             }
                         }
 
                         await read();
+                        logSink(`\r(DOWNLOADER) ${nameStr}: ${Logger.getProgressAscii(1)} ${(1 * 100).toFixed(2)}% (${totalSizeMb} MB / ${totalSizeMb} MB)`);
                         fileStream.end();
                         Logger.ReleaseContext();
 
-                        Downloader._logger(`Download complete (${this.source.title})`);
+                        Downloader._logger(`Download complete "${this._feedItem.title}" (${this._feedItem.author})`);
                         this._cache.markCachedUnsafe(this._feedItem);
                         this._cache.save();
                         await Metadata.applyMetadata(this).catch(() => {
@@ -207,7 +202,7 @@ export class Downloader {
                         return { item: this.source, path };
                     })
                     .catch((err) => {
-                        const msg = `Failed to download ${this.source.title} (${this.source.author})`;
+                        const msg = `Failed to download "${this._feedItem.title}" (${this._feedItem.author})`;
                         console.error(`(DOWNLOADER) ${msg}`);
                         Downloader._logger(err.name, "Verbose");
                         Downloader._logger(err.message, "VeryVerbose");
