@@ -120,6 +120,15 @@ const argv = yargs(helpers.hideBin(process.argv))
                     .describe("noRefresh", "Don't refresh the feeds prior to playlist creation")
                     .demandOption(["title", "configPath"])
             })
+            .command("copy", "Copy an existing playlist to Tangara", (yargs) => {
+                yargs.string("title")
+                    .describe("title", "The title of the playlist")
+                    .string("tangaraPath")
+                    .describe("tangaraPath", "Path to root of Tangara")
+                    .boolean("dry")
+                    .describe("dry", "Do not actually copy files to the device")
+                    .demandOption(["title", "tangaraPath"])
+            })
             .demandCommand(1, 1);
     })
     .command("cache", "Cache management", (yargs) => {
@@ -281,6 +290,10 @@ switch (argv._[0]) {
             "create": {
                 func: createPlaylist,
                 args: [argv.title, argv.configPath, !argv.remote, !argv.noRefresh]
+            },
+            "copy": {
+                func: playlistToDevice,
+                args: [argv.title, argv.tangaraPath, argv.dry]
             }
         }, "Invalid playlist command");
         break;
@@ -803,4 +816,23 @@ function sync(title: string, configPath: string, tangaraPath: string, keepExisti
 
         Logger.Log(`Sync complete`);
     });
+}
+
+function playlistToDevice(title: string, tangaraPath: string, dry: boolean = false) {
+    const playlist = Playlist.fromM3U(title, PLAYLIST_DIR);
+    if (playlist === null) {
+        console.error(`Could not load playlist ${title} - no such playlist found`);
+        return;
+    }
+
+    Logger.Log(`Copying playlist ${title} to Tangara...`);
+    if(!dry) {
+        fs.cpSync(playlist.rootDir(), tangaraPath, {
+            recursive: true,
+            errorOnExist: false
+        });
+        Logger.Log(`Playlist "${title}" data copied to ${tangaraPath}`);
+    } else {
+        Logger.Log(`Dry run: would copy ${playlist.rootDir()} to ${tangaraPath}`);
+    }
 }

@@ -29,6 +29,11 @@ export class Playlist {
         this._workingDir = workingDir;
     }
 
+    // TODO: some duplication here with the instanced methods
+    public static playlistM3UPath(title: string, workingDir: string): string {
+        return `${workingDir}/${Downloader.toSafeFileName(title)}/Playlists/${Downloader.toSafeFileName(title)}.playlist`;
+    }
+
     public playlistM3UPath(): string {
         return `${this.localPlaylistFilesDir()}/${Downloader.toSafeFileName(this.title)}.playlist`;
     }
@@ -142,6 +147,22 @@ export class Playlist {
         playlist.medias = media;
         this.saveM3U(playlist);
         return this.playlistM3UPath();
+    }
+
+    public static fromM3U(title: string, workingDir: string,): Playlist | null {
+        const m3uPath = Playlist.playlistM3UPath(title, workingDir);
+        Playlist._logger(`Loading playlist from ${m3uPath}`, "Verbose");
+        if (!fs.existsSync(m3uPath)) {
+            Playlist._logger(`${m3uPath} does not exist`, "Verbose");
+            return null;
+        }
+        
+        const items = Playlist.loadItems(m3uPath);
+        const feedItems: FeedItem[] = items.map(item => {
+            // TODO: fix FeedItems having to mock URLs and other values
+            return new FeedItem(item.title, new URL("http://example.com"), "", item.podcast, 'full', null);
+        });
+        return new Playlist(title, feedItems, workingDir);
     }
 
     public static loadItems(m3uPath: string): { title: string, podcast: string }[] {
