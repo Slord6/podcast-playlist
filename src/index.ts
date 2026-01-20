@@ -211,7 +211,7 @@ const argv = yargs(helpers.hideBin(process.argv))
     .alias("veryverbose", "vv")
     .describe("veryverbose", "High verbosity of output")
     .demandCommand(1, 1)
-    .version("0.9.0")
+    .version("1.1.0")
     .parse() as any;
 
 if (argv.veryverbose) {
