@@ -206,7 +206,16 @@ export class Downloader {
                         console.error(`(DOWNLOADER) ${msg}`);
                         Downloader._logger(err.name, "Verbose");
                         Downloader._logger(err.message, "VeryVerbose");
+                        Downloader._logger(err.message, "VeryVerbose");
                         Downloader._logger(err.stack ?? "<no trace>", "VeryVerbose");
+
+                        if(fs.existsSync(path)) {
+                            Downloader._logger(`Removing partial file: ${path}`, "VeryVerbose");
+                            fs.rmSync(path);
+                        } else {
+                            Downloader._logger(`No file written to: ${path}, no need to delete`, "VeryVerbose");
+                        }
+
                         throw err;
                     });
             }
