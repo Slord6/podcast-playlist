@@ -146,9 +146,9 @@ export class Downloader {
                     .then(async (response) => {
                         const totalSize = Number(response.headers.get("content-length")) || 0;
                         const totalSizeMb = (totalSize / 1024 / 1024).toFixed(2)
-                        
+
                         const nameLen = 30;
-                        let nameStr: string = this.source.title.length > nameLen ?  this.source.title.substring(0, nameLen - 3) + "..." :  this.source.title;
+                        let nameStr: string = this.source.title.length > nameLen ? this.source.title.substring(0, nameLen - 3) + "..." : this.source.title;
 
                         const logSink = Logger.ClaimContext();
 
@@ -159,9 +159,30 @@ export class Downloader {
                         const logInterval = 1000; // ms
 
                         const startTime = Date.now();
+                        let cancelled = false;
 
                         const read = async () => {
+                            const handleInterrupt = function () {
+                                cancelled = true;
+                                fileStream.close();
+                                Logger.ReleaseContext();
+                                Downloader._logger(`CTRL+C: Download interrupted, exiting...`);
+
+                                if (fs.existsSync(path)) {
+                                    Downloader._logger(`Removing partial file: ${path}`, "Verbose");
+                                    fs.rmSync(path);
+                                    Downloader._logger(`Partial file removed`, "Verbose");
+                                }
+                                process.exit(0);
+                            }
+                            process.on('SIGINT', handleInterrupt);
+                            Downloader._logger(`SIGINT handler registered`, "VeryVerbose");
+
                             while (true) {
+                                if (cancelled) {
+                                    Downloader._logger(`Download cancelled, stopping read loop...`, "VeryVerbose");
+                                    while(true){}
+                                }
                                 const { done, value } = await reader.read();
                                 if (done) break;
                                 fileStream.write(Buffer.from(value));
@@ -176,13 +197,16 @@ export class Downloader {
                                     const speed = (receivedMb / ((Date.now() - startTime) / 1000)).toFixed(2); // MB/s
                                     // clear line
                                     logSink(`\x1b[2K\r`);
-                                    if(percent !== null) {
+                                    if (percent !== null) {
                                         logSink(`\r(DOWNLOADER) ${nameStr}: ${Logger.getProgressAscii(percent)} ${(percent * 100).toFixed(2)}% (${receivedMbFmt} MB / ${totalSizeMb} MB) @ ${speed} MB/s`);
                                     } else {
                                         logSink(`\r(DOWNLOADER) ${nameStr}: ??% (${receivedMbFmt} MB // ?? KB) @ ${speed} MB/s`);
                                     }
                                 }
                             }
+
+                            process.removeListener('SIGINT', handleInterrupt);
+                            Downloader._logger(`SIGINT handler removed`, "VeryVerbose");
                         }
 
                         await read();
@@ -209,7 +233,7 @@ export class Downloader {
                         Downloader._logger(err.message, "VeryVerbose");
                         Downloader._logger(err.stack ?? "<no trace>", "VeryVerbose");
 
-                        if(fs.existsSync(path)) {
+                        if (fs.existsSync(path)) {
                             Downloader._logger(`Removing partial file: ${path}`, "VeryVerbose");
                             fs.rmSync(path);
                         } else {
