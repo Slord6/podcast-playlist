@@ -31,11 +31,11 @@ export class Playlist {
 
     // TODO: some duplication here with the instanced methods
     public static playlistM3UPath(title: string, workingDir: string): string {
-        return `${workingDir}/${Downloader.toSafeFileName(title)}/Playlists/${Downloader.toSafeFileName(title)}.playlist`;
+        return `${workingDir}/${Downloader.toSafeFileName(title)}/Playlists/${Downloader.toSafeFileName(title)}.m3u`;
     }
 
     public playlistM3UPath(): string {
-        return `${this.localPlaylistFilesDir()}/${Downloader.toSafeFileName(this.title)}.playlist`;
+        return `${this.localPlaylistFilesDir()}/${Downloader.toSafeFileName(this.title)}.m3u`;
     }
 
     private localAudioFilesDir(): string {

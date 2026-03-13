@@ -760,7 +760,7 @@ function sync(title: string, configPath: string, tangaraPath: string, keepExisti
         return;
     }
     const tangaraPlaylists: string[] = fs.readdirSync(tangaraPlaylistsPath)
-        .filter(file => file.endsWith(".playlist"))
+        .filter(file => file.endsWith(".playlist") || file.endsWith(".m3u"))
         .map(file => `${tangaraPlaylistsPath}/${file}`);
     Logger.Log(`Found ${tangaraPlaylists.length} playlists on Tangara`, "Verbose");
 
