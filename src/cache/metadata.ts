@@ -1,6 +1,5 @@
 import { Downloader } from "../downloader";
 import * as fs from "fs";
-import { loadMusicMetadata } from 'music-metadata';
 import fluentFfmpeg from 'fluent-ffmpeg';
 import { Logger } from "../logger";
 
