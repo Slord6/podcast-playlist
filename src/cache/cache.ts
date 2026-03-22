@@ -8,7 +8,8 @@ import { PlayheadFeed } from "../playlist/playheadFeed";
 import { CacheConfig } from "./cacheConfig";
 import * as fs from "fs";
 import * as nodepath from "path";
-import { ICommonTagsResult, loadMusicMetadata } from 'music-metadata';
+import { loadEsm } from 'load-esm';
+import { ICommonTagsResult } from 'music-metadata';
 import { createReadStream } from 'node:fs';
 import path from "node:path";
 import { Metadata } from "./metadata";
@@ -104,7 +105,7 @@ export class Cache {
                     const stat = await fs.promises.stat(filePath);
 
                     // Dynamic load the music-metadata ESM module
-                    const { parseStream } = await loadMusicMetadata();
+                    const { parseStream } = await loadEsm<typeof import('music-metadata')>('music-metadata');
                     if (stat.isFile()) {
                         try {
                             const audioStream = createReadStream(filePath);
@@ -289,7 +290,7 @@ export class Cache {
         }).then((subdirs: fs.Dirent[]) => {
             const feeds: Feed[] = [];
             subdirs.forEach(subDir => {
-                const jsonPath = `${subDir.path}/${subDir.name}/feed.json`;
+                const jsonPath = `${subDir.parentPath}/${subDir.name}/feed.json`;
                 if (fs.existsSync(jsonPath)) {
                     const feed = Feed.fromJSON(fs.readFileSync(jsonPath).toString());
                     feeds.push(feed);
