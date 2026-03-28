@@ -234,10 +234,10 @@ export class Downloader {
                         Downloader._logger(err.stack ?? "<no trace>", "VeryVerbose");
 
                         if (fs.existsSync(path)) {
-                            Downloader._logger(`Removing partial file: ${path}`, "VeryVerbose");
+                            Downloader._logger(`Removing partial file: ${path}`, "Verbose");
                             fs.rmSync(path);
                         } else {
-                            Downloader._logger(`No file written to: ${path}, no need to delete`, "VeryVerbose");
+                            Downloader._logger(`No file written to: ${path}, no need to delete`, "Verbose");
                         }
 
                         throw err;
