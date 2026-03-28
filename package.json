@@ -19,6 +19,7 @@
     "music-metadata": "^11.12.3",
     "rss-parser": "^3.13.0",
     "sqlite3": "^6.0.1",
+    "ts-console-utils": "github:Slord6/ts-console-utils",
     "xml2js": "^0.6.2",
     "yargs": "^17.7.2"
   },

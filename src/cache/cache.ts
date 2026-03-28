@@ -13,10 +13,10 @@ import { ICommonTagsResult } from 'music-metadata';
 import { createReadStream } from 'node:fs';
 import path from "node:path";
 import { Metadata } from "./metadata";
-import { it } from "node:test";
-import { prependListener } from "node:process";
+import { Colour as C } from "ts-console-utils";
 
 const CONFIG_FILE_NAME: string = `cache.json`;
+const Colour = C.Colour;
 
 export class Cache {
     private static _logger = Logger.GetNamedLogger("CACHE");

@@ -1,3 +1,6 @@
+import { Colour as C, Progress } from "ts-console-utils";
+const Colour = C.Colour;
+
 export type Verbosity = "VeryVerbose" | "Verbose" | "Info";
 
 type LogFunc = (message: string, verbosity?: Verbosity) => void;
@@ -20,9 +23,25 @@ export class Logger {
         this._verbosity = verbosity;
     }
 
+    private static SetVerbosityColour(verbosity: Verbosity) {
+        switch(verbosity) {
+            case "VeryVerbose":
+                Colour.push(Colour.COLOURS.GREEN);
+                break;
+            case "Verbose":
+                Colour.push(Colour.COLOURS.YELLOW);
+                break;
+            case "Info":
+                Colour.push(Colour.COLOURS.WHITE);
+                break;
+        }
+    }
+
     public static Log(message: string, verbosity: Verbosity = "Info") {
         if(!Logger.ShouldLog(verbosity)) return;
+        Logger.SetVerbosityColour(verbosity);
         Logger._sink(message);
+        Colour.pop();
     }
 
     /**
@@ -69,9 +88,9 @@ export class Logger {
      * @returns 
      */
     public static getProgressAscii(percent: number, width: number = 20): string {
-        const filled = Math.round(width * percent);
-        const remaining = Math.max(0, width - filled);
-        return `[${">".repeat(filled) + ".".repeat(remaining)}]`;
+        return Progress.getProgressAscii(percent, {
+            size: width
+        });
     }
 
 }

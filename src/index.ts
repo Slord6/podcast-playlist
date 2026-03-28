@@ -13,6 +13,8 @@ import { Cache } from "./cache/cache";
 import { FeedItem } from "./feedItem";
 import { Playlist } from "./playlist/playlist";
 import { Logger } from "./logger";
+import { Control } from 'ts-console-utils';
+const ConsoleControl = Control.Control;
 
 const DATA_DIR = process.env.PODCASTPLAYLISTDIR || "./data";
 const CACHE_DIR = `${DATA_DIR}/cache`;
@@ -344,7 +346,7 @@ function importCacheFiles(path: string, recursive: boolean | undefined, ignoreAr
 function cacheSummary() {
     const cache = new Cache(CACHE_DIR);
     cache.summarise().then(summaries => {
-       summaries.forEach(summary => Logger.Log(summary, "Info")); 
+        summaries.forEach(summary => Logger.Log(summary, "Info"));
     });
 }
 
@@ -361,7 +363,13 @@ function handleCommand(command: string, mapping: CommandMapping, errorText: stri
         console.error(errorText);
         return;
     }
-    handler.func.apply(null, handler.args);
+    ConsoleControl.hideCursor();
+    const res = handler.func.apply(null, handler.args);
+    if(res instanceof Promise) {
+        res.finally(() => ConsoleControl.showCursor());
+    } else {
+        ConsoleControl.showCursor();
+    }
 }
 
 async function refreshFeeds(): Promise<void> {
@@ -613,7 +621,7 @@ function markItemsBeforeDate(feedName: string, date: string, dry: boolean | unde
         }
 
         const dateTime = new Date(dateStamp);
-        console.log(`Checking for items in '${feed.name}' released before ${dateTime.toISOString()} (${dateTime.toLocaleDateString('en-GB',{weekday: 'long'})})`);
+        console.log(`Checking for items in '${feed.name}' released before ${dateTime.toISOString()} (${dateTime.toLocaleDateString('en-GB', { weekday: 'long' })})`);
         const matches = feed.items.filter(item => {
             const published = item.published;
             if (published === null) {
@@ -826,7 +834,7 @@ function playlistToDevice(title: string, tangaraPath: string, dry: boolean = fal
     }
 
     Logger.Log(`Copying playlist ${title} to Tangara...`);
-    if(!dry) {
+    if (!dry) {
         fs.cpSync(playlist.rootDir(), tangaraPath, {
             recursive: true,
             errorOnExist: false
