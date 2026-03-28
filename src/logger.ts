@@ -1,4 +1,5 @@
-import { Progress } from "ts-console-utils";
+import { Colour as C, Progress } from "ts-console-utils";
+const Colour = C.Colour;
 
 export type Verbosity = "VeryVerbose" | "Verbose" | "Info";
 
@@ -22,9 +23,25 @@ export class Logger {
         this._verbosity = verbosity;
     }
 
+    private static SetVerbosityColour(verbosity: Verbosity) {
+        switch(verbosity) {
+            case "VeryVerbose":
+                Colour.push(Colour.COLOURS.GREEN);
+                break;
+            case "Verbose":
+                Colour.push(Colour.COLOURS.YELLOW);
+                break;
+            case "Info":
+                Colour.push(Colour.COLOURS.WHITE);
+                break;
+        }
+    }
+
     public static Log(message: string, verbosity: Verbosity = "Info") {
         if(!Logger.ShouldLog(verbosity)) return;
+        Logger.SetVerbosityColour(verbosity);
         Logger._sink(message);
+        Colour.pop();
     }
 
     /**
