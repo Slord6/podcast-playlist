@@ -1,3 +1,5 @@
+import { Progress } from "ts-console-utils";
+
 export type Verbosity = "VeryVerbose" | "Verbose" | "Info";
 
 type LogFunc = (message: string, verbosity?: Verbosity) => void;
@@ -69,9 +71,9 @@ export class Logger {
      * @returns 
      */
     public static getProgressAscii(percent: number, width: number = 20): string {
-        const filled = Math.round(width * percent);
-        const remaining = Math.max(0, width - filled);
-        return `[${">".repeat(filled) + ".".repeat(remaining)}]`;
+        return Progress.getProgressAscii(percent, {
+            size: width
+        });
     }
 
 }
